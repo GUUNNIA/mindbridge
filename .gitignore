@@ -1,0 +1,61 @@
+# dependencies
+node_modules
+.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# testing
+coverage
+playwright-report
+test-results
+
+# next.js
+.next/
+out/
+build/
+dist/
+
+# production
+*.local
+
+# env (절대 commit 금지)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# misc
+.DS_Store
+*.pem
+Thumbs.db
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.example
+.idea/
+
+# prisma
+prisma/*.db
+prisma/*.db-journal
+
+# logs
+logs
+*.log
+
+# vercel
+.vercel
+
+# husky internal
+.husky/_

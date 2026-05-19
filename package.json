@@ -1,0 +1,69 @@
+{
+  "name": "mindbridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MindBridge — 정신건강 EAP 멀티롤 플랫폼 MVP (기획→개발 프로세스 검증)",
+  "scripts": {
+    "dev": "next dev --turbo",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio",
+    "db:seed": "tsx prisma/seed.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "e2e": "playwright test",
+    "secretlint": "secretlint \"**/*\" --secretlintignore .gitignore",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.40.0",
+    "@casl/ability": "^6.7.0",
+    "@casl/react": "^4.0.0",
+    "@prisma/client": "^6.0.0",
+    "bcryptjs": "^2.4.3",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "dayjs": "^1.11.13",
+    "lucide-react": "^0.460.0",
+    "next": "^15.1.0",
+    "next-auth": "^4.24.10",
+    "pino": "^9.5.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^2.5.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@secretlint/secretlint-rule-preset-recommend": "^9.0.0",
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "eslint": "^9.16.0",
+    "eslint-config-next": "^15.1.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.0",
+    "pino-pretty": "^11.3.0",
+    "postcss": "^8.4.49",
+    "prisma": "^6.0.0",
+    "secretlint": "^9.0.0",
+    "tailwindcss": "^4.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  },
+  "lint-staged": {
+    "*": "secretlint"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

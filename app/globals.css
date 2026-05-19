@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Pretendard", system-ui, -apple-system, sans-serif;
+
+  /* MindBridge color palette - psychology-safe blue-green */
+  --color-brand-50: oklch(0.97 0.02 200);
+  --color-brand-100: oklch(0.93 0.04 200);
+  --color-brand-500: oklch(0.62 0.13 200);
+  --color-brand-600: oklch(0.54 0.14 200);
+  --color-brand-700: oklch(0.46 0.13 200);
+
+  /* Risk levels (per PRD §8) */
+  --color-risk-l1: oklch(0.82 0.18 90);   /* yellow-500  */
+  --color-risk-l2: oklch(0.73 0.18 50);   /* orange-500 */
+  --color-risk-l3: oklch(0.63 0.22 25);   /* red-500    */
+  --color-risk-l4: oklch(0.52 0.24 25);   /* red-700    */
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-white text-neutral-900 antialiased;
+    font-family: var(--font-sans);
+    letter-spacing: -0.01em;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-500;
+  }
+}

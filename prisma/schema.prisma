@@ -1,0 +1,369 @@
+// MindBridge — Prisma Schema (W1 P0 엔티티)
+//
+// 참조 문서:
+// - 기획안 §5.5 (엔티티 정의·인덱스·암호화)
+// - PRD §7.3 (보안·암호화)
+// - dev plan §2 Week 1
+//
+// 작성 정책:
+// - V1 P0 엔티티 11개만 (Assessment·Session·ClinicalNote 등은 W2~W3 마이그레이션에서 추가)
+// - 암호화 컬럼은 keyVersion 컬럼 함께 둠 (V1 단일 키, V2 회전 대비)
+// - 모든 ID는 uuid
+// - 모든 모델에 createdAt/updatedAt, 필요시 deletedAt
+// - 소프트 삭제 정책: deletedAt 활용, 30일 grace 후 cron 으로 익명화 또는 하드 삭제
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearchPostgres"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================================
+// Enums (PRD §5.5.2 / 기획안)
+// ============================================================
+
+enum UserRole {
+  EMPLOYEE
+  COUNSELOR
+  PSYCHIATRIST
+  HR
+  ADMIN
+}
+
+enum UserStatus {
+  PENDING       // 이메일 인증 대기
+  ACTIVE
+  SUSPENDED
+  DELETED       // 소프트 삭제, deletedAt set
+}
+
+enum CompanyStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  EXPIRED
+}
+
+enum PlanType {
+  STARTER
+  STANDARD
+  ENTERPRISE
+}
+
+enum SubStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  EXPIRED
+  CANCELED
+}
+
+enum ConsentType {
+  SERVICE          // 필수
+  SENSITIVE_DATA   // 필수 (자가진단·세션 모두 민감정보)
+  STATISTICS       // 선택 (미동의 시 HR 집계 모집단에서 제외, BR-12)
+  MARKETING        // 선택
+}
+
+enum CounselorTier {
+  JUNIOR          // 3~5년
+  SENIOR          // 5~10년
+  SUPERVISOR      // 10년+, 교육자격
+}
+
+enum LicenseType {
+  CLINICAL_PSYCHOLOGIST_1
+  COUNSELING_PSYCHOLOGIST_1
+  MENTAL_HEALTH_NURSE
+}
+
+enum VerifyStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+// ============================================================
+// 사용자·조직
+// ============================================================
+
+model User {
+  id              String       @id @default(uuid())
+  email           String       @unique
+  passwordHash    String?      // bcrypt 12 rounds (NextAuth Credentials, Day 2)
+  role            UserRole
+  status          UserStatus   @default(PENDING)
+
+  companyId       String?
+  departmentId    String?
+
+  // 암호화 컬럼 (AES-256-GCM, 앱 레이어). Day 18 활성화.
+  // V1 은 encKeyVersion=1 단일 키. 회전은 V2.
+  realName        String?      // encrypted
+  phone           String?      // encrypted
+  encKeyVersion   Int          @default(1)
+
+  // 익명 식별자 (BLAKE2b(id, ANONYMIZATION_SALT)). HR·운영자 화면 노출용.
+  anonymizedId    String       @unique
+
+  // 직원에게만 노출. 실명 입력 없음.
+  nickname        String?
+
+  emailVerifiedAt DateTime?
+  lastLoginAt     DateTime?
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  deletedAt       DateTime?    // 소프트 삭제, 30일 grace
+
+  // Relations
+  company         Company?     @relation(fields: [companyId], references: [id])
+  department      Department?  @relation(fields: [departmentId], references: [id])
+  consents        Consent[]
+  auditLogs       AuditLog[]   @relation("ActorLogs")
+  counselor       Counselor?
+  invitesIssued   InviteCode[] @relation("InvitesIssued")
+  usedInvite      InviteCode?  @relation("UsedInvite")
+
+  @@index([companyId, role])
+  @@index([status, role])
+  @@index([deletedAt])
+}
+
+model Company {
+  id            String         @id @default(uuid())
+  name          String
+  status        CompanyStatus  @default(TRIAL)
+  domain        String?        // 이메일 도메인 (예: "company.com")
+  contactEmail  String
+  contactPhone  String?
+
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  users         User[]
+  departments   Department[]
+  subscriptions Subscription[]
+  invites       InviteCode[]
+
+  @@index([status])
+}
+
+model Department {
+  id        String   @id @default(uuid())
+  companyId String
+  name      String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  users     User[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+// ============================================================
+// 구독·초대
+// ============================================================
+
+model Subscription {
+  id           String    @id @default(uuid())
+  companyId    String
+  plan         PlanType
+  status       SubStatus @default(TRIAL)
+  seatCount    Int       // 정원 (BR-9 연관)
+  pricePerSeat Int       // KRW, 1인당 월 단가
+
+  startedAt    DateTime
+  endsAt       DateTime  // 갱신 30일 전 알림 트리거
+
+  // V1 수동 결제. 자동화는 V2.
+  manualPaidAt DateTime?
+  notes        String?
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  company      Company   @relation(fields: [companyId], references: [id])
+
+  @@index([companyId, status])
+  @@index([endsAt])
+}
+
+model InviteCode {
+  id          String    @id @default(uuid())
+  code        String    @unique           // 8~12자리 짧은 토큰
+  companyId   String
+  issuedById  String                       // HR User ID
+  email       String?                      // 대상 이메일 (optional)
+
+  expiresAt   DateTime
+  usedAt      DateTime?
+  usedById    String?   @unique            // 1회용. Day 13 다회용 정책 검토.
+  revokedAt   DateTime?
+
+  createdAt   DateTime  @default(now())
+
+  company     Company   @relation(fields: [companyId], references: [id])
+  issuedBy    User      @relation("InvitesIssued", fields: [issuedById], references: [id])
+  usedBy      User?     @relation("UsedInvite", fields: [usedById], references: [id])
+
+  @@index([companyId, expiresAt])
+  @@index([code])
+}
+
+// ============================================================
+// 동의
+// ============================================================
+
+model Consent {
+  id          String      @id @default(uuid())
+  userId      String
+  type        ConsentType
+  version     String       // 약관 버전 (예: "2026-05-19-v1")
+  agreedAt    DateTime     @default(now())
+  revokedAt   DateTime?
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+  @@index([userId, revokedAt])
+}
+
+// ============================================================
+// 상담사 프로필
+// ============================================================
+
+model Counselor {
+  id            String                  @id @default(uuid())
+  userId        String                  @unique
+  tier          CounselorTier           @default(JUNIOR)
+  bio           String?                 // 자기소개
+  yearsOfPractice Int                   @default(0)
+  rating        Float?                  // 평균 평점 (Feedback 집계, Day 21+)
+  ratingCount   Int                     @default(0)
+
+  approvedAt    DateTime?               // 운영자 승인 시점
+  approvedById  String?                 // ADMIN User ID
+  suspendedAt   DateTime?
+  suspendReason String?
+
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+
+  user          User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentials   CounselorCredential[]
+  availability  CounselorAvailability[]
+  categories    CounselorCategory[]
+
+  @@index([tier, rating])
+  @@index([approvedAt, suspendedAt])
+}
+
+model CounselorCredential {
+  id            String       @id @default(uuid())
+  counselorId   String
+  licenseType   LicenseType
+  licenseNumber String       // 자격증 번호
+  issuedAt      DateTime
+  status        VerifyStatus @default(PENDING)
+  verifiedAt    DateTime?
+  verifiedById  String?      // ADMIN
+  documentUrl   String?      // Storage URL (V1 수동 등록)
+
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  counselor     Counselor    @relation(fields: [counselorId], references: [id], onDelete: Cascade)
+
+  @@index([counselorId, status])
+  @@index([status, licenseType])
+}
+
+model CounselorAvailability {
+  id          String    @id @default(uuid())
+  counselorId String
+  // 가용 슬롯 정의. V1 은 단순 시간 블록.
+  startsAt    DateTime
+  endsAt      DateTime
+  recurring   Boolean   @default(false)  // 매주 반복 여부
+  dayOfWeek   Int?                       // recurring=true 시 사용 (0=일 ~ 6=토)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  counselor   Counselor @relation(fields: [counselorId], references: [id], onDelete: Cascade)
+
+  @@index([counselorId, startsAt])
+  @@index([startsAt, endsAt])
+}
+
+// ============================================================
+// 분류 마스터 (전문 분야 카테고리)
+// ============================================================
+
+model Category {
+  id          String              @id @default(uuid())
+  slug        String              @unique           // "depression", "anxiety", "burnout" 등
+  name        String                                // 한국어 표시명
+  description String?
+  active      Boolean             @default(true)
+  sortOrder   Int                 @default(0)
+
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  counselors  CounselorCategory[]
+
+  @@index([active, sortOrder])
+}
+
+// Counselor M:N Category
+model CounselorCategory {
+  counselorId String
+  categoryId  String
+
+  createdAt   DateTime  @default(now())
+
+  counselor   Counselor @relation(fields: [counselorId], references: [id], onDelete: Cascade)
+  category    Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([counselorId, categoryId])
+  @@index([categoryId])
+}
+
+// ============================================================
+// 감사 로그
+// ============================================================
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  actorId      String?                // null = 시스템·익명 액션
+  action       String                 // "READ_CLINICAL_NOTE", "PERMISSION_DENIED" 등
+  resourceType String                 // "ClinicalNote", "Session" 등
+  resourceId   String
+  metadata     Json?                  // 부가 컨텍스트
+  ipAddress    String?
+  userAgent    String?
+  timestamp    DateTime @default(now())
+
+  actor        User?    @relation("ActorLogs", fields: [actorId], references: [id])
+
+  @@index([actorId, timestamp])
+  @@index([resourceType, resourceId, timestamp])
+  @@index([action, timestamp])  // PERMISSION_DENIED 빈도 모니터링용
+}
+
+// ============================================================
+// W2~W4 엔티티는 별도 마이그레이션에서 추가:
+// - W2: Assessment, AssessmentResponse, MatchRecommendation, Booking
+// - W3: Session, SessionMessage, ClinicalNote, Feedback, RiskFlag, Escalation
+// - W4: HRReport, Notification, NotificationOutbox
+// ============================================================
