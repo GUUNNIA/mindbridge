@@ -90,8 +90,8 @@ export default async function AssessmentResultPage({
           <Button asChild variant="outline" className="flex-1">
             <Link href="/app">홈으로</Link>
           </Button>
-          <Button disabled className="flex-1">
-            상담사 찾기 (Day 10 활성화)
+          <Button asChild className="flex-1">
+            <Link href={`/app/counselors?assessmentId=${assessment.id}`}>상담사 찾기</Link>
           </Button>
         </CardFooter>
       </Card>
