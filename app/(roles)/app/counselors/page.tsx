@@ -102,8 +102,8 @@ export default async function CounselorsPage({
                 </p>
               </CardContent>
               <CardFooter>
-                <Button disabled className="w-full">
-                  슬롯 보기 (Day 11 활성화)
+                <Button asChild className="w-full">
+                  <Link href={`/app/counselors/${r.counselorId}`}>슬롯 보기</Link>
                 </Button>
               </CardFooter>
             </Card>

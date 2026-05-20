@@ -20,7 +20,7 @@ export default async function EmployeeHome() {
   if (session?.user.role !== "EMPLOYEE") redirect("/403");
   await guardOnboarded(session.user.id);
 
-  const [latestAssessment, inProgress] = await Promise.all([
+  const [latestAssessment, inProgress, upcomingBooking] = await Promise.all([
     prisma.assessment.findFirst({
       where: { userId: session.user.id, status: "COMPLETED" },
       orderBy: { completedAt: "desc" },
@@ -30,6 +30,20 @@ export default async function EmployeeHome() {
       where: { userId: session.user.id, status: "IN_PROGRESS" },
       orderBy: { startedAt: "desc" },
       select: { id: true },
+    }),
+    prisma.booking.findFirst({
+      where: {
+        employeeId: session.user.id,
+        scheduledAt: { gte: new Date() },
+        status: { in: ["REQUESTED", "CONFIRMED"] },
+      },
+      orderBy: { scheduledAt: "asc" },
+      select: {
+        id: true,
+        scheduledAt: true,
+        status: true,
+        counselor: { select: { nickname: true } },
+      },
     }),
   ]);
 
@@ -74,11 +88,30 @@ export default async function EmployeeHome() {
         <Card>
           <CardHeader>
             <CardTitle>예약된 상담</CardTitle>
-            <CardDescription>다가오는 세션</CardDescription>
+            <CardDescription>
+              {upcomingBooking
+                ? `${upcomingBooking.scheduledAt.toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric", weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false })} · ${upcomingBooking.counselor.nickname ?? "상담사"}`
+                : "예정된 상담이 없습니다."}
+            </CardDescription>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            Week 2 Day 11에 예약 흐름이 활성화됩니다.
+            {upcomingBooking
+              ? `상태: ${upcomingBooking.status === "CONFIRMED" ? "확정" : "수락 대기"}`
+              : "자가진단 완료 후 상담사를 추천받아 예약하세요."}
           </CardContent>
+          <CardFooter>
+            {upcomingBooking ? (
+              <Button asChild variant="outline" className="w-full">
+                <Link href={`/app/bookings/${upcomingBooking.id}`}>상세 보기</Link>
+              </Button>
+            ) : (
+              <Button asChild variant="outline" className="w-full" disabled={!latestAssessment}>
+                <Link href={latestAssessment ? `/app/counselors?assessmentId=${latestAssessment.id}` : "#"}>
+                  상담사 추천 보기
+                </Link>
+              </Button>
+            )}
+          </CardFooter>
         </Card>
       </div>
     </div>
