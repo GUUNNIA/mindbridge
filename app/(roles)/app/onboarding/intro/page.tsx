@@ -35,8 +35,8 @@ export default function OnboardingIntroPage() {
         <Button asChild variant="outline" className="flex-1">
           <Link href="/app">나중에 (홈으로)</Link>
         </Button>
-        <Button disabled className="flex-1">
-          지금 시작 (Day 9 활성화 예정)
+        <Button asChild className="flex-1">
+          <Link href="/app/assessment">지금 시작</Link>
         </Button>
       </CardFooter>
     </Card>
