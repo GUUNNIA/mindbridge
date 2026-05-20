@@ -9,10 +9,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { authOptions } from "@/lib/auth";
+import { guardOnboarded } from "@/lib/onboarding";
 
 export default async function EmployeeHome() {
   const session = await getServerSession(authOptions);
   if (session?.user.role !== "EMPLOYEE") redirect("/403");
+  await guardOnboarded(session.user.id);
 
   return (
     <div className="space-y-6">

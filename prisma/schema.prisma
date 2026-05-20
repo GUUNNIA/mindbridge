@@ -36,10 +36,10 @@ enum UserRole {
 }
 
 enum UserStatus {
-  PENDING       // 이메일 인증 대기
+  PENDING // 이메일 인증 대기
   ACTIVE
   SUSPENDED
-  DELETED       // 소프트 삭제, deletedAt set
+  DELETED // 소프트 삭제, deletedAt set
 }
 
 enum CompanyStatus {
@@ -64,16 +64,16 @@ enum SubStatus {
 }
 
 enum ConsentType {
-  SERVICE          // 필수
-  SENSITIVE_DATA   // 필수 (자가진단·세션 모두 민감정보)
-  STATISTICS       // 선택 (미동의 시 HR 집계 모집단에서 제외, BR-12)
-  MARKETING        // 선택
+  SERVICE // 필수
+  SENSITIVE_DATA // 필수 (자가진단·세션 모두 민감정보)
+  STATISTICS // 선택 (미동의 시 HR 집계 모집단에서 제외, BR-12)
+  MARKETING // 선택
 }
 
 enum CounselorTier {
-  JUNIOR          // 3~5년
-  SENIOR          // 5~10년
-  SUPERVISOR      // 10년+, 교육자격
+  JUNIOR // 3~5년
+  SENIOR // 5~10년
+  SUPERVISOR // 10년+, 교육자격
 }
 
 enum LicenseType {
@@ -88,47 +88,82 @@ enum VerifyStatus {
   REJECTED
 }
 
+// W2 (기획안 §5.5 enum 표)
+enum AssessmentStatus {
+  IN_PROGRESS
+  COMPLETED
+  ABANDONED
+}
+
+enum AssessmentMessageRole {
+  USER
+  ASSISTANT
+}
+
+enum Severity {
+  NONE
+  MILD
+  MODERATE
+  MODERATELY_SEVERE
+  SEVERE
+}
+
+enum BookingStatus {
+  REQUESTED
+  CONFIRMED
+  IN_SESSION
+  CANCELED_BY_USER
+  CANCELED_BY_COUNSELOR
+  NO_SHOW
+  COMPLETED
+}
+
 // ============================================================
 // 사용자·조직
 // ============================================================
 
 model User {
-  id              String       @id @default(uuid())
-  email           String       @unique
-  passwordHash    String?      // bcrypt 12 rounds (NextAuth Credentials, Day 2)
-  role            UserRole
-  status          UserStatus   @default(PENDING)
+  id           String     @id @default(uuid())
+  email        String     @unique
+  passwordHash String? // bcrypt 12 rounds (NextAuth Credentials, Day 2)
+  role         UserRole
+  status       UserStatus @default(PENDING)
 
-  companyId       String?
-  departmentId    String?
+  companyId    String?
+  departmentId String?
 
   // 암호화 컬럼 (AES-256-GCM, 앱 레이어). Day 18 활성화.
   // V1 은 encKeyVersion=1 단일 키. 회전은 V2.
-  realName        String?      // encrypted
-  phone           String?      // encrypted
-  encKeyVersion   Int          @default(1)
+  realName      String? // encrypted
+  phone         String? // encrypted
+  encKeyVersion Int     @default(1)
 
   // 익명 식별자 (BLAKE2b(id, ANONYMIZATION_SALT)). HR·운영자 화면 노출용.
-  anonymizedId    String       @unique
+  anonymizedId String @unique
 
   // 직원에게만 노출. 실명 입력 없음.
-  nickname        String?
+  nickname String?
 
   emailVerifiedAt DateTime?
   lastLoginAt     DateTime?
 
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  deletedAt       DateTime?    // 소프트 삭제, 30일 grace
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime? // 소프트 삭제, 30일 grace
 
   // Relations
-  company         Company?     @relation(fields: [companyId], references: [id])
-  department      Department?  @relation(fields: [departmentId], references: [id])
-  consents        Consent[]
-  auditLogs       AuditLog[]   @relation("ActorLogs")
-  counselor       Counselor?
-  invitesIssued   InviteCode[] @relation("InvitesIssued")
-  usedInvite      InviteCode?  @relation("UsedInvite")
+  company       Company?     @relation(fields: [companyId], references: [id])
+  department    Department?  @relation(fields: [departmentId], references: [id])
+  consents      Consent[]
+  auditLogs     AuditLog[]   @relation("ActorLogs")
+  counselor     Counselor?
+  invitesIssued InviteCode[] @relation("InvitesIssued")
+  usedInvite    InviteCode?  @relation("UsedInvite")
+
+  // W2
+  assessments       Assessment[]
+  employeeBookings  Booking[]    @relation("EmployeeBookings")
+  counselorBookings Booking[]    @relation("CounselorBookings")
 
   @@index([companyId, role])
   @@index([status, role])
@@ -136,15 +171,15 @@ model User {
 }
 
 model Company {
-  id            String         @id @default(uuid())
-  name          String
-  status        CompanyStatus  @default(TRIAL)
-  domain        String?        // 이메일 도메인 (예: "company.com")
-  contactEmail  String
-  contactPhone  String?
+  id           String        @id @default(uuid())
+  name         String
+  status       CompanyStatus @default(TRIAL)
+  domain       String? // 이메일 도메인 (예: "company.com")
+  contactEmail String
+  contactPhone String?
 
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   users         User[]
   departments   Department[]
@@ -155,15 +190,15 @@ model Company {
 }
 
 model Department {
-  id        String   @id @default(uuid())
+  id        String @id @default(uuid())
   companyId String
   name      String
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  users     User[]
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  users   User[]
 
   @@unique([companyId, name])
   @@index([companyId])
@@ -178,42 +213,42 @@ model Subscription {
   companyId    String
   plan         PlanType
   status       SubStatus @default(TRIAL)
-  seatCount    Int       // 정원 (BR-9 연관)
-  pricePerSeat Int       // KRW, 1인당 월 단가
+  seatCount    Int // 정원 (BR-9 연관)
+  pricePerSeat Int // KRW, 1인당 월 단가
 
-  startedAt    DateTime
-  endsAt       DateTime  // 갱신 30일 전 알림 트리거
+  startedAt DateTime
+  endsAt    DateTime // 갱신 30일 전 알림 트리거
 
   // V1 수동 결제. 자동화는 V2.
   manualPaidAt DateTime?
   notes        String?
 
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  company      Company   @relation(fields: [companyId], references: [id])
+  company Company @relation(fields: [companyId], references: [id])
 
   @@index([companyId, status])
   @@index([endsAt])
 }
 
 model InviteCode {
-  id          String    @id @default(uuid())
-  code        String    @unique           // 8~12자리 짧은 토큰
-  companyId   String
-  issuedById  String                       // HR User ID
-  email       String?                      // 대상 이메일 (optional)
+  id         String  @id @default(uuid())
+  code       String  @unique // 8~12자리 짧은 토큰
+  companyId  String
+  issuedById String // HR User ID
+  email      String? // 대상 이메일 (optional)
 
-  expiresAt   DateTime
-  usedAt      DateTime?
-  usedById    String?   @unique            // 1회용. Day 13 다회용 정책 검토.
-  revokedAt   DateTime?
+  expiresAt DateTime
+  usedAt    DateTime?
+  usedById  String?   @unique // 1회용. Day 13 다회용 정책 검토.
+  revokedAt DateTime?
 
-  createdAt   DateTime  @default(now())
+  createdAt DateTime @default(now())
 
-  company     Company   @relation(fields: [companyId], references: [id])
-  issuedBy    User      @relation("InvitesIssued", fields: [issuedById], references: [id])
-  usedBy      User?     @relation("UsedInvite", fields: [usedById], references: [id])
+  company  Company @relation(fields: [companyId], references: [id])
+  issuedBy User    @relation("InvitesIssued", fields: [issuedById], references: [id])
+  usedBy   User?   @relation("UsedInvite", fields: [usedById], references: [id])
 
   @@index([companyId, expiresAt])
   @@index([code])
@@ -224,14 +259,14 @@ model InviteCode {
 // ============================================================
 
 model Consent {
-  id          String      @id @default(uuid())
-  userId      String
-  type        ConsentType
-  version     String       // 약관 버전 (예: "2026-05-19-v1")
-  agreedAt    DateTime     @default(now())
-  revokedAt   DateTime?
+  id        String      @id @default(uuid())
+  userId    String
+  type      ConsentType
+  version   String // 약관 버전 (예: "2026-05-19-v1")
+  agreedAt  DateTime    @default(now())
+  revokedAt DateTime?
 
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, type])
   @@index([userId, revokedAt])
@@ -242,26 +277,29 @@ model Consent {
 // ============================================================
 
 model Counselor {
-  id            String                  @id @default(uuid())
-  userId        String                  @unique
-  tier          CounselorTier           @default(JUNIOR)
-  bio           String?                 // 자기소개
-  yearsOfPractice Int                   @default(0)
-  rating        Float?                  // 평균 평점 (Feedback 집계, Day 21+)
-  ratingCount   Int                     @default(0)
+  id              String        @id @default(uuid())
+  userId          String        @unique
+  tier            CounselorTier @default(JUNIOR)
+  bio             String? // 자기소개
+  yearsOfPractice Int           @default(0)
+  rating          Float? // 평균 평점 (Feedback 집계, Day 21+)
+  ratingCount     Int           @default(0)
 
-  approvedAt    DateTime?               // 운영자 승인 시점
-  approvedById  String?                 // ADMIN User ID
+  approvedAt    DateTime? // 운영자 승인 시점
+  approvedById  String? // ADMIN User ID
   suspendedAt   DateTime?
   suspendReason String?
 
-  createdAt     DateTime                @default(now())
-  updatedAt     DateTime                @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  user          User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  credentials   CounselorCredential[]
-  availability  CounselorAvailability[]
-  categories    CounselorCategory[]
+  user         User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentials  CounselorCredential[]
+  availability CounselorAvailability[]
+  categories   CounselorCategory[]
+
+  // W2
+  matchRecommendations MatchRecommendation[]
 
   @@index([tier, rating])
   @@index([approvedAt, suspendedAt])
@@ -271,35 +309,35 @@ model CounselorCredential {
   id            String       @id @default(uuid())
   counselorId   String
   licenseType   LicenseType
-  licenseNumber String       // 자격증 번호
+  licenseNumber String // 자격증 번호
   issuedAt      DateTime
   status        VerifyStatus @default(PENDING)
   verifiedAt    DateTime?
-  verifiedById  String?      // ADMIN
-  documentUrl   String?      // Storage URL (V1 수동 등록)
+  verifiedById  String? // ADMIN
+  documentUrl   String? // Storage URL (V1 수동 등록)
 
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  counselor     Counselor    @relation(fields: [counselorId], references: [id], onDelete: Cascade)
+  counselor Counselor @relation(fields: [counselorId], references: [id], onDelete: Cascade)
 
   @@index([counselorId, status])
   @@index([status, licenseType])
 }
 
 model CounselorAvailability {
-  id          String    @id @default(uuid())
+  id          String   @id @default(uuid())
   counselorId String
   // 가용 슬롯 정의. V1 은 단순 시간 블록.
   startsAt    DateTime
   endsAt      DateTime
-  recurring   Boolean   @default(false)  // 매주 반복 여부
-  dayOfWeek   Int?                       // recurring=true 시 사용 (0=일 ~ 6=토)
+  recurring   Boolean  @default(false) // 매주 반복 여부
+  dayOfWeek   Int? // recurring=true 시 사용 (0=일 ~ 6=토)
 
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  counselor   Counselor @relation(fields: [counselorId], references: [id], onDelete: Cascade)
+  counselor Counselor @relation(fields: [counselorId], references: [id], onDelete: Cascade)
 
   @@index([counselorId, startsAt])
   @@index([startsAt, endsAt])
@@ -310,17 +348,20 @@ model CounselorAvailability {
 // ============================================================
 
 model Category {
-  id          String              @id @default(uuid())
-  slug        String              @unique           // "depression", "anxiety", "burnout" 등
-  name        String                                // 한국어 표시명
+  id          String  @id @default(uuid())
+  slug        String  @unique // "depression", "anxiety", "burnout" 등
+  name        String // 한국어 표시명
   description String?
-  active      Boolean             @default(true)
-  sortOrder   Int                 @default(0)
+  active      Boolean @default(true)
+  sortOrder   Int     @default(0)
 
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  counselors  CounselorCategory[]
+  counselors CounselorCategory[]
+
+  // W2
+  primaryAssessments Assessment[] @relation("AssessmentPrimaryCategory")
 
   @@index([active, sortOrder])
 }
@@ -330,10 +371,10 @@ model CounselorCategory {
   counselorId String
   categoryId  String
 
-  createdAt   DateTime  @default(now())
+  createdAt DateTime @default(now())
 
-  counselor   Counselor @relation(fields: [counselorId], references: [id], onDelete: Cascade)
-  category    Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  counselor Counselor @relation(fields: [counselorId], references: [id], onDelete: Cascade)
+  category  Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@id([counselorId, categoryId])
   @@index([categoryId])
@@ -345,25 +386,110 @@ model CounselorCategory {
 
 model AuditLog {
   id           String   @id @default(uuid())
-  actorId      String?                // null = 시스템·익명 액션
-  action       String                 // "READ_CLINICAL_NOTE", "PERMISSION_DENIED" 등
-  resourceType String                 // "ClinicalNote", "Session" 등
+  actorId      String? // null = 시스템·익명 액션
+  action       String // "READ_CLINICAL_NOTE", "PERMISSION_DENIED" 등
+  resourceType String // "ClinicalNote", "Session" 등
   resourceId   String
-  metadata     Json?                  // 부가 컨텍스트
+  metadata     Json? // 부가 컨텍스트
   ipAddress    String?
   userAgent    String?
   timestamp    DateTime @default(now())
 
-  actor        User?    @relation("ActorLogs", fields: [actorId], references: [id])
+  actor User? @relation("ActorLogs", fields: [actorId], references: [id])
 
   @@index([actorId, timestamp])
   @@index([resourceType, resourceId, timestamp])
-  @@index([action, timestamp])  // PERMISSION_DENIED 빈도 모니터링용
+  @@index([action, timestamp]) // PERMISSION_DENIED 빈도 모니터링용
 }
 
 // ============================================================
-// W2~W4 엔티티는 별도 마이그레이션에서 추가:
-// - W2: Assessment, AssessmentResponse, MatchRecommendation, Booking
+// W2 — 자가진단·매칭·예약
+// ============================================================
+
+model Assessment {
+  id     String           @id @default(uuid())
+  userId String
+  status AssessmentStatus @default(IN_PROGRESS)
+
+  // AI 분류 결과 (sendAssessmentMessage 가 completed:true 시 채움, Day 9)
+  primaryCategoryId    String?
+  secondaryCategoryIds String[]
+  severity             Severity?
+
+  // 요약 (Day 18 컬럼 암호화 적용 예정. V1 은 plain text)
+  summaryForCounselor String?
+  summaryForEmployee  String?
+  encKeyVersion       Int     @default(1)
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  primaryCategory      Category?             @relation("AssessmentPrimaryCategory", fields: [primaryCategoryId], references: [id])
+  responses            AssessmentResponse[]
+  matchRecommendations MatchRecommendation[]
+
+  @@index([userId, status])
+  @@index([status, createdAt])
+}
+
+model AssessmentResponse {
+  id            String                @id @default(uuid())
+  assessmentId  String
+  role          AssessmentMessageRole
+  // 본문은 Day 18 컬럼 암호화 적용 예정.
+  content       String
+  encKeyVersion Int                   @default(1)
+  riskFlagged   Boolean               @default(false)
+  createdAt     DateTime              @default(now())
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@index([assessmentId, createdAt])
+}
+
+model MatchRecommendation {
+  id           String   @id @default(uuid())
+  assessmentId String
+  counselorId  String // Counselor.id (User.id 아님)
+  rank         Int // 1, 2, 3
+  score        Float // 0..100 (BR-4 가중치)
+  reasonText   String?
+  createdAt    DateTime @default(now())
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  counselor  Counselor  @relation(fields: [counselorId], references: [id], onDelete: Cascade)
+
+  @@index([assessmentId, rank])
+  @@index([assessmentId, score(sort: Desc)])
+}
+
+model Booking {
+  id           String        @id @default(uuid())
+  employeeId   String // User.id (EMPLOYEE)
+  counselorId  String // User.id (COUNSELOR)
+  scheduledAt  DateTime
+  status       BookingStatus @default(REQUESTED)
+  cancelReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee  User @relation("EmployeeBookings", fields: [employeeId], references: [id])
+  counselor User @relation("CounselorBookings", fields: [counselorId], references: [id])
+
+  // Day 11 슬롯 동시성: counselor + scheduledAt 유니크
+  @@unique([counselorId, scheduledAt])
+  @@index([employeeId, scheduledAt])
+  @@index([counselorId, scheduledAt])
+  @@index([status, scheduledAt])
+}
+
+// ============================================================
+// W3~W4 엔티티는 별도 마이그레이션에서 추가:
 // - W3: Session, SessionMessage, ClinicalNote, Feedback, RiskFlag, Escalation
 // - W4: HRReport, Notification, NotificationOutbox
 // ============================================================
