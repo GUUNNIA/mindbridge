@@ -33,6 +33,7 @@
     "next": "^15.1.0",
     "next-auth": "^4.24.10",
     "pino": "^9.5.0",
+    "radix-ui": "^1.4.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwind-merge": "^2.5.0",

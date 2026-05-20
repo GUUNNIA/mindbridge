@@ -15,6 +15,31 @@
   --color-risk-l2: oklch(0.73 0.18 50);   /* orange-500 */
   --color-risk-l3: oklch(0.63 0.22 25);   /* red-500    */
   --color-risk-l4: oklch(0.52 0.24 25);   /* red-700    */
+
+  /* shadcn/ui semantic tokens — light theme only (dark mode = V2) */
+  --color-background: oklch(1 0 0);
+  --color-foreground: oklch(0.20 0.01 240);
+  --color-card: oklch(1 0 0);
+  --color-card-foreground: oklch(0.20 0.01 240);
+  --color-popover: oklch(1 0 0);
+  --color-popover-foreground: oklch(0.20 0.01 240);
+  --color-primary: oklch(0.46 0.13 200);             /* = brand-700 */
+  --color-primary-foreground: oklch(0.98 0.01 200);
+  --color-secondary: oklch(0.93 0.04 200);           /* = brand-100 */
+  --color-secondary-foreground: oklch(0.30 0.10 200);
+  --color-muted: oklch(0.96 0.005 240);
+  --color-muted-foreground: oklch(0.50 0.01 240);
+  --color-accent: oklch(0.93 0.04 200);              /* = brand-100 */
+  --color-accent-foreground: oklch(0.30 0.10 200);
+  --color-destructive: oklch(0.63 0.22 25);          /* = risk-l3 */
+  --color-border: oklch(0.92 0.005 240);
+  --color-input: oklch(0.92 0.005 240);
+  --color-ring: oklch(0.62 0.13 200);                /* = brand-500 */
+
+  --radius-sm: calc(0.5rem - 4px);
+  --radius-md: calc(0.5rem - 2px);
+  --radius-lg: 0.5rem;
+  --radius-xl: calc(0.5rem + 4px);
 }
 
 @layer base {
