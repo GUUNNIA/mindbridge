@@ -1,14 +1,22 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { getToken } from "next-auth/jwt";
+import type { UserRole } from "@prisma/client";
 
 /**
  * 미들웨어 1차 권한 검증.
  * - prefix → 요구 롤 매핑 (PRD §2.1, IA §3)
- * - 실제 NextAuth 통합은 Week 1 Day 2 이후. 현재는 스켈레톤만.
  * - 자원 단위 권한(예: 다른 상담사 노트 접근)은 CASL ability로 Server Action 레벨에서 검증.
+ *
+ * 동작:
+ *   1. PUBLIC_PATHS → 통과
+ *   2. 보호 prefix 매칭 → 토큰 확인
+ *      - 토큰 없음 → /signin?from=...
+ *      - 토큰 있음 + 롤 불일치 → /403
+ *      - 일치 → 통과
  */
 
-const ROLE_PREFIXES: Record<string, string> = {
+const ROLE_PREFIXES: Record<string, UserRole> = {
   "/app": "EMPLOYEE",
   "/counselor": "COUNSELOR",
   "/psychiatrist": "PSYCHIATRIST",
@@ -16,7 +24,7 @@ const ROLE_PREFIXES: Record<string, string> = {
   "/admin": "ADMIN",
 };
 
-// /app/emergency는 위기 핫라인이라 로그인 없이도 접근 가능 (PRD §3.2.1 US-E4)
+// /app/emergency 는 위기 핫라인이라 로그인 없이도 접근 가능 (PRD §3.2.1 US-E4)
 const PUBLIC_PATHS = new Set([
   "/",
   "/signin",
@@ -29,36 +37,50 @@ const PUBLIC_PATHS = new Set([
   "/faq",
   "/contact",
   "/maintenance",
+  "/403",
   "/app/emergency",
 ]);
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   if (PUBLIC_PATHS.has(pathname)) {
     return NextResponse.next();
   }
 
-  const requiredRole = Object.entries(ROLE_PREFIXES).find(([prefix]) =>
+  const matched = Object.entries(ROLE_PREFIXES).find(([prefix]) =>
     pathname.startsWith(prefix),
-  )?.[1];
+  );
 
-  if (!requiredRole) {
+  if (!matched) {
     return NextResponse.next();
   }
 
-  // TODO Week 1 Day 2: NextAuth 세션에서 토큰 추출 → 롤 확인
-  // 현재는 모든 보호 경로를 /signin으로 리다이렉트
-  const signInUrl = new URL("/signin", req.url);
-  signInUrl.searchParams.set("from", pathname);
-  return NextResponse.redirect(signInUrl);
+  const [, requiredRole] = matched;
+
+  const token = await getToken({
+    req,
+    secret: process.env.NEXTAUTH_SECRET,
+  });
+
+  if (!token) {
+    const signInUrl = new URL("/signin", req.url);
+    signInUrl.searchParams.set("from", pathname);
+    return NextResponse.redirect(signInUrl);
+  }
+
+  if (token.role !== requiredRole) {
+    return NextResponse.redirect(new URL("/403", req.url));
+  }
+
+  return NextResponse.next();
 }
 
 export const config = {
   matcher: [
     /*
      * 다음을 제외한 모든 경로:
-     * - api (API routes는 Server Actions로 대체)
+     * - api (NextAuth API 포함 — 미들웨어 통과 필요 없음)
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico, robots.txt, sitemap.xml
