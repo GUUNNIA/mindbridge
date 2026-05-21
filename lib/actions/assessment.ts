@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { withAuth } from "@/lib/with-auth";
 import { assistantReply, detectCrisis, shouldComplete } from "@/lib/ai/triage";
 import { classifyCategory } from "@/lib/ai/client";
+import { encryptField, decryptField } from "@/lib/crypto/field";
 
 /**
  * PRD §6.1.1 직원 자가진단 Server Actions.
@@ -86,18 +87,28 @@ export const sendAssessmentMessage = withAuth(
 
     const isCrisis = detectCrisis(text);
 
+    // D18 — 본인 메시지 enc 후 INSERT
+    const encUser = encryptField(text);
     await prisma.assessmentResponse.create({
       data: {
         assessmentId: assessment.id,
         role: "USER",
-        content: text,
+        content: encUser.ciphertext ?? "",
+        encKeyVersion: encUser.encKeyVersion,
         riskFlagged: isCrisis,
       },
     });
 
+    // 이전 메시지 decrypt 해서 transcript 누적·shouldComplete 계산
+    const priorTexts = assessment.responses.map(
+      (r) => decryptField(r.content, r.encKeyVersion) ?? "",
+    );
     const assistantCount = assessment.responses.filter((r) => r.role === "ASSISTANT").length;
     const userTextsSoFar = [
-      ...assessment.responses.filter((r) => r.role === "USER").map((r) => r.content),
+      ...assessment.responses
+        .map((r, i) => ({ role: r.role, content: priorTexts[i] }))
+        .filter((r) => r.role === "USER")
+        .map((r) => r.content),
       text,
     ].join("\n");
 
@@ -105,11 +116,13 @@ export const sendAssessmentMessage = withAuth(
 
     if (!complete) {
       const reply = assistantReply(assistantCount);
+      const encReply = encryptField(reply);
       await prisma.assessmentResponse.create({
         data: {
           assessmentId: assessment.id,
           role: "ASSISTANT",
-          content: reply,
+          content: encReply.ciphertext ?? "",
+          encKeyVersion: encReply.encKeyVersion,
         },
       });
       return { reply, riskFlagged: isCrisis };
@@ -117,16 +130,19 @@ export const sendAssessmentMessage = withAuth(
 
     // 완료 — 종합 멘트 + classify_category
     const closingMsg = assistantReply(assistantCount);
+    const encClosing = encryptField(closingMsg);
     await prisma.assessmentResponse.create({
       data: {
         assessmentId: assessment.id,
         role: "ASSISTANT",
-        content: closingMsg,
+        content: encClosing.ciphertext ?? "",
+        encKeyVersion: encClosing.encKeyVersion,
       },
     });
 
+    // classifyCategory 컨텍스트 transcript — 평문으로 전달
     const transcript = [
-      ...assessment.responses.map((r) => `${r.role}: ${r.content}`),
+      ...assessment.responses.map((r, i) => `${r.role}: ${priorTexts[i]}`),
       `USER: ${text}`,
       `ASSISTANT: ${closingMsg}`,
     ].join("\n");

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { decryptField } from "@/lib/crypto/field";
 import { AssessmentChat } from "./_components/chat";
 
 export default async function AssessmentChatPage({
@@ -30,7 +31,7 @@ export default async function AssessmentChatPage({
       initialMessages={assessment.responses.map((r) => ({
         id: r.id,
         role: r.role,
-        content: r.content,
+        content: decryptField(r.content, r.encKeyVersion) ?? "",
       }))}
     />
   );

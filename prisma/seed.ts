@@ -134,6 +134,15 @@ const ADMINS: UserSpec[] = [
 
 async function wipe() {
   // Cascade 가 처리하지 않는 관계 순서대로 (외래키 충돌 회피)
+  // W3 → W2 → W1 역순.
+  await prisma.notificationOutbox.deleteMany();
+  await prisma.clinicalNote.deleteMany();
+  await prisma.sessionMessage.deleteMany();
+  await prisma.session.deleteMany();
+  await prisma.booking.deleteMany();
+  await prisma.matchRecommendation.deleteMany();
+  await prisma.assessmentResponse.deleteMany();
+  await prisma.assessment.deleteMany();
   await prisma.auditLog.deleteMany();
   await prisma.consent.deleteMany();
   await prisma.inviteCode.deleteMany();

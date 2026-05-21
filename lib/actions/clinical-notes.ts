@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { withAuth } from "@/lib/with-auth";
 import { generateSoap, type SoapDraft } from "@/lib/ai/soap";
+import { encryptField, decryptField } from "@/lib/crypto/field";
 
 /**
  * 임상 노트 server actions (Day 17, PRD §6.1.1).
@@ -59,13 +60,17 @@ export const generateDraftFromMemo = withAuth(
     const check = await ensureCounselorOfSession(input.sessionId, ctx.user.id);
     if (!check.ok) return { ok: false, error: check.error };
 
-    // 세션 메시지 + 자가진단 요약 조회 (transcript context)
-    const messages = await prisma.sessionMessage.findMany({
+    // 세션 메시지 + 자가진단 요약 조회 (transcript context). D18 enc → decrypt 후 LLM 컨텍스트로
+    const rawMessages = await prisma.sessionMessage.findMany({
       where: { sessionId: input.sessionId },
       orderBy: { createdAt: "asc" },
-      select: { role: true, content: true },
+      select: { role: true, content: true, encKeyVersion: true },
       take: 200,
     });
+    const messages = rawMessages.map((m) => ({
+      role: m.role,
+      content: decryptField(m.content, m.encKeyVersion) ?? "",
+    }));
     const assessment = await prisma.assessment.findFirst({
       where: { userId: check.session.employeeId, status: "COMPLETED" },
       orderBy: { completedAt: "desc" },
@@ -129,27 +134,36 @@ export const saveClinicalNote = withAuth(
     const isFinalize = data.status === "FINALIZED";
     const finalizedAt = isFinalize ? new Date() : null;
 
+    // D18 컬럼 암호화 — SOAP 4 fields + 직원용 요약
+    const encSubj = encryptField(data.subjective || null);
+    const encObj = encryptField(data.objective || null);
+    const encAssess = encryptField(data.assessmentText || null);
+    const encPlan = encryptField(data.plan || null);
+    const encSummary = encryptField(data.summaryForEmployee || null);
+
     const note = await prisma.clinicalNote.upsert({
       where: { sessionId: data.sessionId },
       create: {
         sessionId: data.sessionId,
         counselorId: ctx.user.id,
         employeeId: check.session.employeeId,
-        subjective: data.subjective || null,
-        objective: data.objective || null,
-        assessmentText: data.assessmentText || null,
-        plan: data.plan || null,
-        summaryForEmployee: data.summaryForEmployee || null,
+        subjective: encSubj.ciphertext,
+        objective: encObj.ciphertext,
+        assessmentText: encAssess.ciphertext,
+        plan: encPlan.ciphertext,
+        summaryForEmployee: encSummary.ciphertext,
+        encKeyVersion: encSubj.encKeyVersion,
         flags: data.flags,
         status: data.status,
         finalizedAt,
       },
       update: {
-        subjective: data.subjective || null,
-        objective: data.objective || null,
-        assessmentText: data.assessmentText || null,
-        plan: data.plan || null,
-        summaryForEmployee: data.summaryForEmployee || null,
+        subjective: encSubj.ciphertext,
+        objective: encObj.ciphertext,
+        assessmentText: encAssess.ciphertext,
+        plan: encPlan.ciphertext,
+        summaryForEmployee: encSummary.ciphertext,
+        encKeyVersion: encSubj.encKeyVersion,
         flags: data.flags,
         status: data.status,
         // FINALIZED → DRAFT 회귀는 일단 허용 (시연 단순화). V2 에 잠금 정책.
@@ -212,6 +226,14 @@ export const getClinicalNote = withAuth(
     });
     if (!note) return { ok: true, note: null };
 
+    // D18 — DB 평문 0건. 표시 직전 decrypt.
+    const v = note.encKeyVersion;
+    const decSubj = decryptField(note.subjective, v);
+    const decObj = decryptField(note.objective, v);
+    const decAssess = decryptField(note.assessmentText, v);
+    const decPlan = decryptField(note.plan, v);
+    const decSummary = decryptField(note.summaryForEmployee, v);
+
     return {
       ok: true,
       note: {
@@ -219,11 +241,11 @@ export const getClinicalNote = withAuth(
         sessionId: note.sessionId,
         status: note.status,
         // EMPLOYEE 는 직원용 요약만 (PRD §2.2). SOAP 4 field 는 null 처리.
-        subjective: isCounselor ? note.subjective : null,
-        objective: isCounselor ? note.objective : null,
-        assessmentText: isCounselor ? note.assessmentText : null,
-        plan: isCounselor ? note.plan : null,
-        summaryForEmployee: note.summaryForEmployee,
+        subjective: isCounselor ? decSubj : null,
+        objective: isCounselor ? decObj : null,
+        assessmentText: isCounselor ? decAssess : null,
+        plan: isCounselor ? decPlan : null,
+        summaryForEmployee: decSummary,
         flags: isCounselor ? note.flags : [],
         createdAt: note.createdAt,
         updatedAt: note.updatedAt,

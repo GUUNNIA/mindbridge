@@ -6,6 +6,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { withAuth } from "@/lib/with-auth";
 import { messagingProvider } from "@/lib/messaging/provider";
+import { encryptField, decryptField } from "@/lib/crypto/field";
 
 /**
  * 세션룸 Server Actions (Day 15, PRD §6.1.1).
@@ -93,8 +94,9 @@ export const enterSession = withAuth(
       wasJustCreated = true;
     }
 
-    // 첫 입장 시 IN_PROGRESS 전이 + SYSTEM 메시지 1건
+    // 첫 입장 시 IN_PROGRESS 전이 + SYSTEM 메시지 1건 (D18 enc)
     if (wasJustCreated) {
+      const sysEnc = encryptField("세션이 시작됐습니다. 편하게 대화를 시작해 주세요.");
       await prisma.$transaction([
         prisma.session.update({
           where: { id: sessionId },
@@ -105,7 +107,8 @@ export const enterSession = withAuth(
             sessionId,
             senderId: null,
             role: "SYSTEM",
-            content: "세션이 시작됐습니다. 편하게 대화를 시작해 주세요.",
+            content: sysEnc.ciphertext ?? "",
+            encKeyVersion: sysEnc.encKeyVersion,
           },
         }),
       ]);
@@ -175,12 +178,14 @@ export const sendSessionMessage = withAuth(
       return { ok: false, error: "활성 세션이 아닙니다." };
     }
 
+    const enc = encryptField(parsed.data.content);
     const message = await prisma.sessionMessage.create({
       data: {
         sessionId: session.id,
         senderId: ctx.user.id,
         role,
-        content: parsed.data.content,
+        content: enc.ciphertext ?? "",
+        encKeyVersion: enc.encKeyVersion,
       },
       select: { id: true },
     });
@@ -235,6 +240,7 @@ export const listSessionMessages = withAuth(
         id: true,
         role: true,
         content: true,
+        encKeyVersion: true,
         senderId: true,
         createdAt: true,
       },
@@ -245,7 +251,7 @@ export const listSessionMessages = withAuth(
       messages: rows.map((r) => ({
         id: r.id,
         role: r.role,
-        content: r.content,
+        content: decryptField(r.content, r.encKeyVersion) ?? "",
         senderId: r.senderId,
         createdAtISO: r.createdAt.toISOString(),
       })),
