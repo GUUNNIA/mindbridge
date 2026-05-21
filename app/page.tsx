@@ -1,37 +1,120 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getServerSession } from "next-auth";
+
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { authOptions } from "@/lib/auth";
+import { ROLE_HOME } from "@/lib/role-routes";
 
-export default function LandingPage() {
+/**
+ * 루트 랜딩 페이지.
+ * - 로그인 상태: 본인 role 홈으로 redirect (ROLE_HOME)
+ * - 비로그인 상태: 서비스 소개 + 로그인·가입 CTA
+ *
+ * V1 은 외부 청중용 마케팅 페이지가 아닌 디자인·기능 미리보기 수준. 이미지·일러스트는 V2.
+ */
+
+export default async function LandingPage() {
+  const session = await getServerSession(authOptions);
+  if (session?.user) {
+    redirect(ROLE_HOME[session.user.role] ?? "/signin");
+  }
+
   return (
-    <main className="min-h-screen bg-muted/40 flex items-center justify-center px-6 py-16">
-      <Card className="w-full max-w-xl">
-        <CardHeader>
-          <CardTitle className="text-3xl text-brand-700">MindBridge</CardTitle>
-          <CardDescription>
-            정신건강 EAP 멀티롤 플랫폼 MVP — 기획→개발 프로세스 검증 프로젝트
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm text-muted-foreground">
-          <p>
-            Week 1 Day 1 — Tailwind + shadcn 토큰 연결 확인용 화면. 실제 라우팅은 Day 2 NextAuth
-            셋업 이후 활성화됩니다.
-          </p>
-          <p className="text-xs">
-            아래 두 버튼은 토큰이 의도대로 적용됐는지 보기 위한 더미입니다. 동작 없음.
-          </p>
-        </CardContent>
-        <CardFooter className="gap-2">
-          <Button>시작</Button>
-          <Button variant="outline">진행 상황</Button>
-        </CardFooter>
-      </Card>
+    <main className="min-h-screen bg-muted/40">
+      <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-6 py-12">
+        <Hero />
+        <ValueCards />
+        <Footer />
+      </div>
     </main>
+  );
+}
+
+function Hero() {
+  return (
+    <section className="mb-12 mt-8 max-w-3xl">
+      <p className="mb-3 inline-block rounded-full bg-brand-50 px-3 py-1 text-xs font-medium text-brand-700">
+        B2B 정신건강 EAP 플랫폼
+      </p>
+      <h1 className="text-4xl font-semibold leading-tight tracking-tight text-foreground sm:text-5xl">
+        MindBridge
+      </h1>
+      <p className="mt-3 text-lg text-foreground">
+        직원·상담사·전문의·HR·운영자가 한 흐름에서 자연스럽게 협진하는 멀티롤 정신건강 케어 플랫폼.
+      </p>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Claude AI 기반 자가진단·임상 노트 자동화·위기 신호 감지와 k-익명성 HR 인사이트를 한 곳에서.
+      </p>
+
+      <div className="mt-8 flex flex-wrap gap-3">
+        <Button asChild size="lg">
+          <Link href="/signin">로그인</Link>
+        </Button>
+        <Button asChild size="lg" variant="outline">
+          <Link href="/signup">초대 코드로 가입</Link>
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+function ValueCards() {
+  const items: Array<{
+    title: string;
+    description: string;
+    body: string;
+  }> = [
+    {
+      title: "멀티롤 협진",
+      description: "한 케이스, 자연스러운 흐름",
+      body:
+        "직원의 자가진단부터 상담사 매칭, 전문의 에스컬레이션, HR 익명 집계까지 — 5개 롤이 같은 데이터의 다른 단면을 본인 권한에 맞게 다룹니다.",
+    },
+    {
+      title: "AI 임상 자동화",
+      description: "Claude 도구 4종",
+      body:
+        "카테고리 분류·SOAP 노트 자동 변환·위기 신호 평가·HR 인사이트 생성. 상담사의 행정 시간을 줄이고, 위기는 30초 이내에 감지합니다.",
+    },
+    {
+      title: "익명성·감사성",
+      description: "k≥5 가드 + 컬럼 암호화",
+      body:
+        "HR이 운영하지만 개인 식별은 0건. 임상 데이터는 앱 레이어 AES-256-GCM 암호화, 모든 민감 접근에 감사 로그를 남깁니다.",
+    },
+  ];
+
+  return (
+    <section className="mb-12 grid gap-4 md:grid-cols-3">
+      {items.map((it) => (
+        <Card key={it.title}>
+          <CardHeader>
+            <CardTitle className="text-base">{it.title}</CardTitle>
+            <CardDescription>{it.description}</CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm leading-relaxed text-muted-foreground">
+            {it.body}
+          </CardContent>
+        </Card>
+      ))}
+    </section>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="mt-auto border-t border-border pt-6 text-xs text-muted-foreground">
+      <p>
+        이 환경은 기획→개발 프로세스 검증용 데모입니다. 실제 의료·상담 서비스가 아니며 모든 데이터는 가상입니다.
+      </p>
+    </footer>
   );
 }
