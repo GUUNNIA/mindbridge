@@ -4,7 +4,7 @@
   "private": true,
   "description": "MindBridge — 정신건강 EAP 멀티롤 플랫폼 MVP (기획→개발 프로세스 검증)",
   "scripts": {
-    "dev": "next dev --turbo",
+    "dev": "next dev --turbo -p 3001",
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint",

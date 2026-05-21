@@ -239,6 +239,8 @@ model User {
   riskFlagsAcked    RiskFlag[]       @relation("RiskAcker")
   escalationsAsSubject  Escalation[] @relation("EscalationSubject")
   escalationsAsReviewer Escalation[] @relation("EscalationReviewer")
+  feedbacksAsEmployee   Feedback[]   @relation("FeedbackEmployee")
+  feedbacksAsCounselor  Feedback[]   @relation("FeedbackCounselor")
 
   @@index([companyId, role])
   @@index([status, role])
@@ -627,6 +629,8 @@ model Session {
   messages  SessionMessage[]
   // W3 Day 17: Session 1:1 ClinicalNote
   clinicalNote ClinicalNote?
+  // W3 Day 21: Session 1:1 Feedback (직원이 세션 종료 후 1회 작성)
+  feedback     Feedback?
 
   @@index([employeeId, createdAt])
   @@index([counselorId, createdAt])
@@ -766,7 +770,32 @@ model Escalation {
 }
 
 // ============================================================
-// W3~W4 잔여 엔티티는 별도 마이그레이션에서 추가:
-// - W3 (D21): Feedback
-// - W4: HRReport, Notification
+// Day 21: Feedback — 세션 종료 후 직원이 1회 작성 (UC-5).
+// Session 1:1 (sessionId UNIQUE). rating 은 1~5 정수 (PRD §6.1.1).
+// comment 는 선택 (빈 문자열 허용). wantSameCounselor 는 재예약 의사 boolean.
+// submitFeedback 트랜잭션 안에서 Counselor.rating·ratingCount 집계도 함께 갱신.
+// ============================================================
+model Feedback {
+  id        String  @id @default(uuid())
+  sessionId String  @unique
+  employeeId  String // User.id (EMPLOYEE) — 본인만 작성
+  counselorId String // User.id (COUNSELOR) — 본인 받은 평점 집계용
+
+  rating             Int // 1~5 (app 단 validate)
+  comment            String? // 선택 입력, 빈 문자열 허용
+  wantSameCounselor  Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  employee  User    @relation("FeedbackEmployee", fields: [employeeId], references: [id])
+  counselor User    @relation("FeedbackCounselor", fields: [counselorId], references: [id])
+
+  @@index([counselorId, createdAt])
+  @@index([employeeId, createdAt])
+}
+
+// ============================================================
+// W4 잔여 엔티티는 별도 마이그레이션에서 추가:
+// - W4: HRReport, Notification, Department 확장
 // ============================================================

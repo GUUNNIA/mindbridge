@@ -274,3 +274,74 @@ export const listSessionMessages = withAuth(
     };
   },
 );
+
+/**
+ * D21: endSession — 세션 IN_PROGRESS → COMPLETED 수동 전이.
+ *
+ * V1 단순화: 직원·상담사 중 한 명이 누르면 즉시 종료 (양측 합의 대기 없음).
+ * SCHEDULED 상태에서도 종료 가능 (입장 전 취소와는 다름 — booking 상태는 그대로).
+ * 이미 COMPLETED/CANCELED 면 noop 반환. SYSTEM "종료" 메시지 1건 추가.
+ */
+export const endSession = withAuth(
+  { action: "update", subject: "Session" },
+  async (
+    ctx,
+    input: { sessionId: string },
+  ): Promise<{ ok: true; alreadyEnded: boolean } | { ok: false; error: string }> => {
+    const session = await prisma.session.findUnique({
+      where: { id: input.sessionId },
+      select: {
+        id: true,
+        status: true,
+        employeeId: true,
+        counselorId: true,
+      },
+    });
+    if (!session) return { ok: false, error: "세션을 찾을 수 없습니다." };
+
+    if (
+      session.employeeId !== ctx.user.id &&
+      session.counselorId !== ctx.user.id
+    ) {
+      await prisma.auditLog.create({
+        data: {
+          actorId: ctx.user.id,
+          action: "PERMISSION_DENIED",
+          resourceType: "Session",
+          resourceId: session.id,
+          metadata: { reason: "not participant", at: "endSession" },
+        },
+      });
+      return { ok: false, error: "이 세션의 참가자가 아닙니다." };
+    }
+
+    if (session.status === "COMPLETED" || session.status === "CANCELED") {
+      return { ok: true, alreadyEnded: true };
+    }
+
+    const now = new Date();
+    const actorLabel = session.employeeId === ctx.user.id ? "직원" : "상담사";
+    const sysEnc = encryptField(`${actorLabel}이 세션을 종료했습니다.`);
+    await prisma.$transaction([
+      prisma.session.update({
+        where: { id: session.id },
+        data: { status: "COMPLETED", endedAt: now },
+      }),
+      prisma.sessionMessage.create({
+        data: {
+          sessionId: session.id,
+          senderId: null,
+          role: "SYSTEM",
+          content: sysEnc.ciphertext ?? "",
+          encKeyVersion: sysEnc.encKeyVersion,
+        },
+      }),
+    ]);
+    await messagingProvider.publishMessage({
+      channel: `session-${session.id}`,
+      event: "session-ended",
+      payload: { endedAt: now.toISOString() },
+    });
+    return { ok: true, alreadyEnded: false };
+  },
+);

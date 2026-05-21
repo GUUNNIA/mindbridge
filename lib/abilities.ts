@@ -35,6 +35,7 @@ export type AppSubject =
   | "Payout"
   | "RiskAlert"
   | "Escalation"
+  | "Feedback"
   | "HRReport"
   | "Notification"
   | "all";
@@ -92,17 +93,23 @@ export function defineAbilityFor(user: AbilityUser): AppAbility {
       // D16: 본인 담당 booking·자가진단 요약 read (자원 단위 필터는 server action 에서 booking.counselorId 검증)
       can("read", "Booking");
       can("read", "CaseAssessment");
+      // D21: 본인 받은 피드백 집계만 read (코멘트 개별 노출은 V2). 자원 단위 격리는
+      // server action 에서 counselorId === ctx.user.id 검증.
+      can("read", "Feedback");
       break;
     }
 
     case "EMPLOYEE": {
       can(["read", "create", "update"], "OwnAssessment");
       can(["read", "create"], "CounselorRecommendation");
-      can(["read", "update"], "Session"); // 본인 세션 (update = 입장·메시지 발송)
+      can(["read", "update"], "Session"); // 본인 세션 (update = 입장·메시지 발송·종료)
       can("read", "ClinicalNote"); // 직원용 요약만 — W3 conditions
       can("create", "Booking");
       can("read", "Booking");
       can(["read", "create"], "Consent");
+      // D21: 본인 세션에 한해 피드백 작성·열람. 자원 단위 격리는 server action
+      // 에서 session.employeeId === ctx.user.id 검증.
+      can(["read", "create"], "Feedback");
       break;
     }
   }

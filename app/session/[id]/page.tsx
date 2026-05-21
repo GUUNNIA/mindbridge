@@ -59,7 +59,7 @@ export default async function SessionRoomPage({
           <div>
             <h1 className="text-xl font-semibold text-foreground">{peerNickname} 님과의 세션</h1>
             <p className="text-xs text-muted-foreground">
-              상태: {sessionRow.status} · 메시지는 V1 평문(D18 컬럼 암호화 예정)
+              상태: {sessionRow.status} · 메시지는 AES-256-GCM 컬럼 암호화 적용
             </p>
           </div>
           <Button asChild variant="outline" size="sm">
@@ -72,6 +72,7 @@ export default async function SessionRoomPage({
           myRole={myRole}
           peerNickname={peerNickname}
           initialMessages={initial.messages}
+          initialStatus={sessionRow.status}
         />
       </div>
     </main>

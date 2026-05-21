@@ -136,4 +136,35 @@ describe("CASL abilities — 5롤별 권한 매트릭스 (PRD §2.2)", () => {
       expect(a.can("create", "Escalation")).toBe(false);
     }
   });
+
+  // D21 — Feedback subject 5롤 cross-check.
+  it("EMPLOYEE: Feedback R/Create 허용 (본인 세션에 한해, 자원 단위 격리는 server action)", () => {
+    const a = defineAbilityFor({ ...baseUser, role: "EMPLOYEE" });
+    expect(a.can("read", "Feedback")).toBe(true);
+    expect(a.can("create", "Feedback")).toBe(true);
+    expect(a.can("update", "Feedback")).toBe(false); // 작성 후 수정 불가 (V1)
+    expect(a.can("delete", "Feedback")).toBe(false);
+  });
+
+  it("COUNSELOR: Feedback R 허용 (본인 받은 집계만, 자원 단위는 server action)", () => {
+    const a = defineAbilityFor({ ...baseUser, role: "COUNSELOR" });
+    expect(a.can("read", "Feedback")).toBe(true);
+    expect(a.can("create", "Feedback")).toBe(false);
+    expect(a.can("update", "Feedback")).toBe(false);
+  });
+
+  it("ADMIN: Feedback manage 허용 (운영자 품질 모니터링)", () => {
+    const a = defineAbilityFor({ ...baseUser, role: "ADMIN" });
+    expect(a.can("manage", "Feedback")).toBe(true);
+    expect(a.can("read", "Feedback")).toBe(true);
+  });
+
+  it("HR/PSYCHIATRIST: Feedback 모든 액션 거부 (개인 식별·임상 외 자원)", () => {
+    for (const role of ["HR", "PSYCHIATRIST"] as const) {
+      const a = defineAbilityFor({ ...baseUser, role });
+      expect(a.can("read", "Feedback")).toBe(false);
+      expect(a.can("create", "Feedback")).toBe(false);
+      expect(a.can("update", "Feedback")).toBe(false);
+    }
+  });
 });

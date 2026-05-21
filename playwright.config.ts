@@ -21,7 +21,7 @@ export default defineConfig({
   retries: 0,
   reporter: [["list"]],
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL: "http://localhost:3001",
     headless: true,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
@@ -35,7 +35,7 @@ export default defineConfig({
   ],
   webServer: {
     command: "pnpm dev",
-    url: "http://localhost:3000",
+    url: "http://localhost:3001",
     reuseExistingServer: true,
     timeout: 120 * 1000,
     stdout: "ignore",
