@@ -61,7 +61,7 @@ export function defineAbilityFor(user: AbilityUser): AppAbility {
       can("read", "HRReport");
       can("manage", "HRReport");
       can("read", "Notification");
-      can(["create", "read"], "InviteCode");
+      can(["create", "read", "update"], "InviteCode");
       // 정산·임상 노트·세션은 명시적 미허용
       break;
     }

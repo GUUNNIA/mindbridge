@@ -55,6 +55,22 @@ describe("CASL abilities — 5롤별 권한 매트릭스 (PRD §2.2)", () => {
     expect(a.can("read", "Payout")).toBe(false);
   });
 
+  it("HR: InviteCode R/Create/Update 허용 (Day 13 revoke 포함)", () => {
+    const a = defineAbilityFor({ ...baseUser, role: "HR" });
+    expect(a.can("read", "InviteCode")).toBe(true);
+    expect(a.can("create", "InviteCode")).toBe(true);
+    expect(a.can("update", "InviteCode")).toBe(true);
+  });
+
+  it("EMPLOYEE/COUNSELOR/PSYCHIATRIST: InviteCode 모든 액션 거부", () => {
+    for (const role of ["EMPLOYEE", "COUNSELOR", "PSYCHIATRIST"] as const) {
+      const a = defineAbilityFor({ ...baseUser, role });
+      expect(a.can("read", "InviteCode")).toBe(false);
+      expect(a.can("create", "InviteCode")).toBe(false);
+      expect(a.can("update", "InviteCode")).toBe(false);
+    }
+  });
+
   it("ADMIN: manage all + AuditLog R", () => {
     const a = defineAbilityFor({ ...baseUser, role: "ADMIN" });
     expect(a.can("read", "AuditLog")).toBe(true);

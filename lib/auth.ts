@@ -42,6 +42,7 @@ export const authOptions: NextAuthOptions = {
             status: true,
             anonymizedId: true,
             nickname: true,
+            companyId: true,
           },
         });
         if (!user || !user.passwordHash) return null;
@@ -56,6 +57,7 @@ export const authOptions: NextAuthOptions = {
           name: user.nickname ?? null,
           role: user.role,
           anonymizedId: user.anonymizedId,
+          companyId: user.companyId,
         };
       },
     }),
@@ -65,6 +67,7 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.role = user.role;
         token.anonymizedId = user.anonymizedId;
+        token.companyId = user.companyId;
       }
       return token;
     },
@@ -73,6 +76,7 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.sub;
         session.user.role = token.role;
         session.user.anonymizedId = token.anonymizedId;
+        session.user.companyId = token.companyId;
       }
       return session;
     },

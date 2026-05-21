@@ -1,10 +1,13 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -23,7 +26,22 @@ export default async function HRHome() {
         </p>
       </header>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="flex flex-col">
+          <CardHeader>
+            <CardTitle>초대코드</CardTitle>
+            <CardDescription>직원 가입용 1회 코드 발급·폐기</CardDescription>
+          </CardHeader>
+          <CardContent className="flex-1 text-sm text-muted-foreground">
+            Day 13 기능 활성. 발급 후 30일 유효.
+          </CardContent>
+          <CardFooter>
+            <Button asChild className="w-full">
+              <Link href="/hr/invites">발급 페이지로</Link>
+            </Button>
+          </CardFooter>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>이용률</CardTitle>

@@ -48,6 +48,7 @@ export interface AuthContext {
     email: string;
     role: UserRole;
     anonymizedId: string;
+    companyId: string | null;
   };
   ability: AppAbility;
 }
@@ -94,6 +95,7 @@ export async function enforce(
       email: user.email,
       role: user.role,
       anonymizedId: user.anonymizedId,
+      companyId: user.companyId ?? null,
     },
     ability,
   };
@@ -115,6 +117,7 @@ export function withAuth<TArgs extends unknown[], TResult>(
         role: session.user.role,
         email: session.user.email,
         anonymizedId: session.user.anonymizedId,
+        companyId: session.user.companyId,
       },
       policy,
     );
