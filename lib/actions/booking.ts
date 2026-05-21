@@ -6,6 +6,22 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { withAuth } from "@/lib/with-auth";
 import { expandRecurringSlots, type Slot } from "@/lib/booking";
+import { enqueue } from "@/lib/notifications/outbox";
+
+const KST = "Asia/Seoul";
+
+function formatScheduledAtKST(d: Date): string {
+  return d.toLocaleString("ko-KR", {
+    timeZone: KST,
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
 
 /**
  * 슬롯·예약 Server Actions (PRD §6.1.1).
@@ -107,15 +123,39 @@ export const createBooking = withAuth(
       return { ok: false, error: "유효하지 않은 슬롯입니다.", code: "INVALID_SLOT" };
     }
 
+    // 알림용 메타 (트랜잭션 외부에서 조회 — read-only, slot-take 실패 시 낭비는 미미)
+    const [employee, counselorUser] = await Promise.all([
+      prisma.user.findUnique({ where: { id: ctx.user.id }, select: { email: true } }),
+      prisma.user.findUnique({ where: { id: counselor.userId }, select: { nickname: true } }),
+    ]);
+    if (!employee?.email) {
+      return { ok: false, error: "직원 정보를 찾을 수 없습니다.", code: "FORBIDDEN" };
+    }
+
     try {
-      const booking = await prisma.booking.create({
-        data: {
-          employeeId: ctx.user.id,
-          counselorId: counselor.userId,
-          scheduledAt,
-          status: "REQUESTED",
-        },
-        select: { id: true },
+      const booking = await prisma.$transaction(async (tx) => {
+        const created = await tx.booking.create({
+          data: {
+            employeeId: ctx.user.id,
+            counselorId: counselor.userId,
+            scheduledAt,
+            status: "REQUESTED",
+          },
+          select: { id: true },
+        });
+        // 트랜잭션 내 outbox enqueue — Booking insert 와 알림 row 가 함께 commit/rollback
+        await enqueue(tx, {
+          type: "BOOKING_REQUESTED",
+          recipientEmail: employee.email,
+          recipientUserId: ctx.user.id,
+          payload: {
+            counselorName: counselorUser?.nickname ?? "상담사",
+            scheduledAtKST: formatScheduledAtKST(scheduledAt),
+            bookingId: created.id,
+          },
+          dedupeKey: `BOOKING_REQUESTED:${created.id}`,
+        });
+        return created;
       });
       return { ok: true, bookingId: booking.id };
     } catch (e) {

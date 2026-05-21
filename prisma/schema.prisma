@@ -118,6 +118,20 @@ enum BookingStatus {
   COMPLETED
 }
 
+enum NotificationType {
+  BOOKING_REQUESTED
+  BOOKING_CONFIRMED
+  BOOKING_CANCELED
+  BOOKING_REMINDER
+}
+
+enum OutboxStatus {
+  PENDING
+  SENT
+  FAILED
+  DEAD
+}
+
 // ============================================================
 // 사용자·조직
 // ============================================================
@@ -489,7 +503,41 @@ model Booking {
 }
 
 // ============================================================
+// Day 12: NotificationOutbox — transactional outbox 패턴.
+// createBooking 등의 트랜잭션 안에서 row 를 PENDING 으로 enqueue,
+// /api/cron/outbox worker 가 polling 으로 provider 전송 후 SENT 마킹.
+// dedupeKey 로 재처리 멱등성 보장.
+// ============================================================
+model NotificationOutbox {
+  id                String           @id @default(uuid())
+
+  type              NotificationType
+  recipientEmail    String
+  recipientUserId   String?
+  subject           String
+  payload           Json
+
+  status            OutboxStatus     @default(PENDING)
+  attempts          Int              @default(0)
+  lastError         String?
+  providerMessageId String?
+
+  // 멱등 키. 호출 측에서 "<TYPE>:<refId>" 형식으로 생성 (예: "BOOKING_REQUESTED:<bookingId>").
+  dedupeKey         String?          @unique
+
+  scheduledAt       DateTime         @default(now())
+  sentAt            DateTime?
+
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  // worker 폴링용 — PENDING 중 scheduledAt 도래 row 우선
+  @@index([status, scheduledAt])
+  @@index([recipientUserId])
+}
+
+// ============================================================
 // W3~W4 엔티티는 별도 마이그레이션에서 추가:
 // - W3: Session, SessionMessage, ClinicalNote, Feedback, RiskFlag, Escalation
-// - W4: HRReport, Notification, NotificationOutbox
+// - W4: HRReport, Notification
 // ============================================================
