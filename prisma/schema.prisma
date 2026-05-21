@@ -145,6 +145,11 @@ enum SessionMessageRole {
   SYSTEM // 입장·퇴장 안내 등
 }
 
+enum ClinicalNoteStatus {
+  DRAFT
+  FINALIZED
+}
+
 // ============================================================
 // 사용자·조직
 // ============================================================
@@ -196,6 +201,8 @@ model User {
   employeeSessions  Session[]        @relation("EmployeeSessions")
   counselorSessions Session[]        @relation("CounselorSessions")
   sessionMessages   SessionMessage[] @relation("SentMessages")
+  counselorNotes    ClinicalNote[]   @relation("CounselorNotes")
+  employeeNotes     ClinicalNote[]   @relation("EmployeeNotes")
 
   @@index([companyId, role])
   @@index([status, role])
@@ -582,6 +589,8 @@ model Session {
   employee  User             @relation("EmployeeSessions", fields: [employeeId], references: [id])
   counselor User             @relation("CounselorSessions", fields: [counselorId], references: [id])
   messages  SessionMessage[]
+  // W3 Day 17: Session 1:1 ClinicalNote
+  clinicalNote ClinicalNote?
 
   @@index([employeeId, createdAt])
   @@index([counselorId, createdAt])
@@ -606,7 +615,42 @@ model SessionMessage {
 }
 
 // ============================================================
+// Day 17: ClinicalNote — SOAP 형식 임상 노트.
+// Session 1:1 (sessionId UNIQUE). counselor 가 작성, employee 가 직원용 요약 read.
+// soapNote/summaryForEmployee 는 Day 18 에 AES-256-GCM 컬럼 암호화 적용 예정.
+// ============================================================
+model ClinicalNote {
+  id          String             @id @default(uuid())
+  sessionId   String             @unique
+  counselorId String // User.id (COUNSELOR)
+  employeeId  String // User.id (EMPLOYEE)
+
+  // SOAP 4 fields (D18 enc 예정)
+  subjective         String? // S: 주관적 — 내담자 진술
+  objective          String? // O: 객관적 — 관찰
+  assessmentText     String? // A: 평가 — 임상 판단
+  plan               String? // P: 계획 — 후속 권고
+  summaryForEmployee String? // 직원용 요약 (D18 enc 예정)
+  flags              String[] @default([]) // 위기 마커 (RISK_SUICIDAL, FAMILY_CONFLICT 등)
+
+  status        ClinicalNoteStatus @default(DRAFT)
+  encKeyVersion Int                @default(1)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  finalizedAt DateTime?
+
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  counselor User    @relation("CounselorNotes", fields: [counselorId], references: [id])
+  employee  User    @relation("EmployeeNotes", fields: [employeeId], references: [id])
+
+  @@index([counselorId, createdAt])
+  @@index([employeeId, createdAt])
+  @@index([status, createdAt])
+}
+
+// ============================================================
 // W3~W4 엔티티는 별도 마이그레이션에서 추가:
-// - W3 (D17+): ClinicalNote, Feedback, RiskFlag, Escalation
+// - W3 (D19+): Feedback, RiskFlag, Escalation
 // - W4: HRReport, Notification
 // ============================================================

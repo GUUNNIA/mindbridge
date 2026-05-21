@@ -80,6 +80,7 @@ export default async function CounselorCasesPage() {
                   <th className="px-3 py-2 font-medium">예약 상태</th>
                   <th className="px-3 py-2 font-medium">자가진단 요약</th>
                   <th className="px-3 py-2 font-medium">세션</th>
+                  <th className="px-3 py-2 font-medium">노트</th>
                   <th className="px-3 py-2 font-medium">조치</th>
                 </tr>
               </thead>
@@ -109,6 +110,9 @@ export default async function CounselorCasesPage() {
                       {c.sessionStatus ?? <span className="italic">미생성</span>}
                     </td>
                     <td className="px-3 py-2">
+                      <NotePill status={c.noteStatus} />
+                    </td>
+                    <td className="px-3 py-2">
                       <Button asChild size="sm" variant="outline">
                         <Link href={`/counselor/cases/${c.bookingId}`}>상세</Link>
                       </Button>
@@ -122,4 +126,22 @@ export default async function CounselorCasesPage() {
       )}
     </div>
   );
+}
+
+function NotePill({ status }: { status: "DRAFT" | "FINALIZED" | null }) {
+  if (status === "FINALIZED") {
+    return (
+      <span className="inline-block rounded-full bg-brand-50 px-2 py-0.5 text-xs text-brand-700">
+        확정
+      </span>
+    );
+  }
+  if (status === "DRAFT") {
+    return (
+      <span className="inline-block rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+        초안
+      </span>
+    );
+  }
+  return <span className="text-xs text-muted-foreground italic">미작성</span>;
 }

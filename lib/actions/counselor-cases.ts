@@ -26,6 +26,7 @@ export interface CaseRow {
   } | null;
   sessionStatus: string | null;
   sessionId: string | null;
+  noteStatus: "DRAFT" | "FINALIZED" | null; // null = 노트 미작성
 }
 
 export const listCounselorCases = withAuth(
@@ -41,7 +42,13 @@ export const listCounselorCases = withAuth(
         scheduledAt: true,
         status: true,
         employee: { select: { id: true, nickname: true } },
-        session: { select: { id: true, status: true } },
+        session: {
+          select: {
+            id: true,
+            status: true,
+            clinicalNote: { select: { status: true } },
+          },
+        },
       },
     });
 
@@ -100,6 +107,7 @@ export const listCounselorCases = withAuth(
           : null,
         sessionStatus: b.session?.status ?? null,
         sessionId: b.session?.id ?? null,
+        noteStatus: b.session?.clinicalNote?.status ?? null,
       };
     });
   },
@@ -120,6 +128,7 @@ export interface CaseDetail {
     completedAt: Date | null;
   } | null;
   session: { id: string; status: string; startedAt: Date | null } | null;
+  noteStatus: "DRAFT" | "FINALIZED" | null;
   // D17 ClinicalNote 도입 후 채워질 자리. V1 D16 은 빈 배열 (placeholder).
   priorNotes: { bookingId: string; scheduledAt: Date; placeholder: true }[];
 }
@@ -140,7 +149,14 @@ export const getCounselorCase = withAuth(
         counselorId: true,
         employeeId: true,
         employee: { select: { id: true, nickname: true } },
-        session: { select: { id: true, status: true, startedAt: true } },
+        session: {
+          select: {
+            id: true,
+            status: true,
+            startedAt: true,
+            clinicalNote: { select: { status: true } },
+          },
+        },
       },
     });
     if (!booking) return { ok: false, error: "케이스를 찾을 수 없습니다." };
@@ -232,6 +248,7 @@ export const getCounselorCase = withAuth(
               startedAt: booking.session.startedAt,
             }
           : null,
+        noteStatus: booking.session?.clinicalNote?.status ?? null,
         priorNotes: priorBookings.map((b) => ({
           bookingId: b.id,
           scheduledAt: b.scheduledAt,

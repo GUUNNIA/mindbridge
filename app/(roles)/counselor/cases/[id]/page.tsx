@@ -154,6 +154,23 @@ export default async function CounselorCaseDetailPage({
 
       <Card>
         <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            임상 노트
+            <NoteBadge status={c.noteStatus} />
+          </CardTitle>
+          <CardDescription>SOAP 형식으로 작성. 메모 1줄에서 자동 초안 생성 가능.</CardDescription>
+        </CardHeader>
+        <CardFooter>
+          <Button asChild className="w-full">
+            <Link href={`/counselor/cases/${c.bookingId}/note`}>
+              {c.session ? "노트 작성·확인" : "(세션 입장 후 작성 가능)"}
+            </Link>
+          </Button>
+        </CardFooter>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="text-lg">이전 노트</CardTitle>
           <CardDescription>
             같은 직원과의 이전 만남 ({c.priorNotes.length}건). 노트 본문은 Day 17 ClinicalNote
@@ -190,5 +207,25 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
       <span className="text-muted-foreground">{label}</span>
       <span className="text-foreground text-right">{children}</span>
     </div>
+  );
+}
+
+function NoteBadge({ status }: { status: "DRAFT" | "FINALIZED" | null }) {
+  if (status === "FINALIZED") {
+    return (
+      <span className="inline-block rounded-full bg-brand-50 px-2 py-0.5 text-xs font-normal text-brand-700">
+        확정
+      </span>
+    );
+  }
+  if (status === "DRAFT") {
+    return (
+      <span className="inline-block rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground">
+        초안
+      </span>
+    );
+  }
+  return (
+    <span className="text-xs font-normal text-muted-foreground italic">미작성</span>
   );
 }
