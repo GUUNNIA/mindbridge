@@ -54,15 +54,24 @@ export const listEscalations = withAuth(
     input: { includeResolved?: boolean } = {},
   ): Promise<EscalationQueueRow[]> => {
     const isAdmin = ctx.user.role === "ADMIN";
+    // 본인 EXPIRED 노출 컷오프 — SLA 24h 와 일관 (BR-6)
+    const expiredWindow = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const where: Prisma.EscalationWhereInput = isAdmin
       ? input.includeResolved
         ? {}
         : { status: { in: ["PENDING", "IN_REVIEW", "EXPIRED"] } }
       : {
-          // PSYCHIATRIST: 본인 IN_REVIEW + 미배정 PENDING 모두 (claim 풀)
+          // PSYCHIATRIST: 본인 IN_REVIEW + 미배정 PENDING + 본인 EXPIRED(24h 이내) 모두 노출.
+          // 본인이 검토 중이던 케이스가 SLA 만료돼도 큐에서 갑자기 사라지지 않게 — 운영자 후속 조치
+          // 안내 표시. 24h 지나면 큐에서 빠지고 운영자만 모니터링.
           OR: [
             { status: "PENDING" },
             { status: "IN_REVIEW", reviewerId: ctx.user.id },
+            {
+              status: "EXPIRED",
+              reviewerId: ctx.user.id,
+              expiredAt: { gte: expiredWindow },
+            },
           ],
         };
 

@@ -59,6 +59,13 @@ export default async function PsychiatristQueuePage() {
   const closed = rows.filter(
     (r) => r.status === "DECIDED" || r.status === "EXPIRED",
   );
+  // 본인이 잡고 있던 EXPIRED 케이스 (PSYCHIATRIST 만 — ADMIN 은 전체 모니터링)
+  const myExpired =
+    session.user.role === "PSYCHIATRIST"
+      ? rows.filter(
+          (r) => r.status === "EXPIRED" && r.reviewerId === session.user.id,
+        )
+      : [];
 
   return (
     <div className="space-y-6">
@@ -68,6 +75,17 @@ export default async function PsychiatristQueuePage() {
           L3 위기 케이스 — 24시간 내 사인오프 필요. SLA 임박 케이스가 큐 상단에 정렬됩니다.
         </p>
       </header>
+
+      {myExpired.length > 0 && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm">
+          <p className="font-medium text-red-900">
+            내가 검토 중이던 케이스 {myExpired.length}건이 SLA 만료됐어요.
+          </p>
+          <p className="mt-1 text-red-800">
+            운영자가 후속 조치를 진행 중입니다. 본인 큐에는 24시간 동안 표시됩니다.
+          </p>
+        </div>
+      )}
 
       <div className="grid gap-3 text-sm md:grid-cols-3">
         <SummaryCard label="대기" count={pending.length} tone="warning" />
