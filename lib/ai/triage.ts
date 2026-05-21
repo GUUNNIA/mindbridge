@@ -27,8 +27,10 @@ export function assistantReply(turnIndex: number): string {
 }
 
 export function shouldComplete(turnIndex: number, transcript: string): boolean {
-  // 4턴 이상 + transcript 100자 이상 시 완료. 길이 보장으로 너무 짧은 응답 방지.
-  return turnIndex >= 3 && transcript.length >= 60;
+  // assistantReply 가 turn >= MOCK_QUESTIONS.length 부터 종합 멘트만 반복하므로
+  // 길이와 무관하게 강제 완료해야 봇 발언과 redirect 가 동기화됨.
+  if (turnIndex >= MOCK_QUESTIONS.length) return true;
+  return turnIndex >= 3 && transcript.length >= 20;
 }
 
 /** 위기 키워드 감지 (Day 19 assess_risk tool 의 자리. 지금은 단순 키워드). */

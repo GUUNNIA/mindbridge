@@ -20,11 +20,18 @@ describe("shouldComplete — 4턴 이상 + 길이 충족", () => {
   it("4턴 + 짧은 transcript → false (길이 미충족)", () => {
     expect(shouldComplete(3, "짧음")).toBe(false);
   });
+  it("4턴 + 20자 한 줄 한국어 → true (임계 완화)", () => {
+    expect(shouldComplete(3, "요즘 잠을 못 자고 매일 불안해서 힘들어요")).toBe(true);
+  });
   it("4턴 + 60자 이상 → true", () => {
     expect(shouldComplete(3, "a".repeat(60))).toBe(true);
   });
   it("5턴 + 60자 이상 → true", () => {
     expect(shouldComplete(4, "a".repeat(60))).toBe(true);
+  });
+  it("hard cap — turn 5 이상이면 길이 무관 true (봇이 정리 멘트만 반복하는 구간)", () => {
+    expect(shouldComplete(5, "짧음")).toBe(true);
+    expect(shouldComplete(10, "")).toBe(true);
   });
 });
 
