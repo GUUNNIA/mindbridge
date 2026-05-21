@@ -3,11 +3,13 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
+import { RiskBanner, type BannerLevel } from "@/components/risk-banner";
 import {
   listSessionMessages,
   sendSessionMessage,
   type SessionMessageView,
 } from "@/lib/actions/session";
+import type { RiskLevelOut } from "@/lib/ai/risk";
 
 const POLL_INTERVAL_MS = 3_000;
 
@@ -26,6 +28,7 @@ export function ChatRoom({
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [bannerLevel, setBannerLevel] = useState<BannerLevel | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastCreatedAtRef = useRef<string | null>(
     initialMessages.length > 0 ? initialMessages[initialMessages.length - 1].createdAtISO : null,
@@ -79,11 +82,25 @@ export function ChatRoom({
       };
       setMessages((prev) => mergeUnique(prev, [optimistic]));
       lastCreatedAtRef.current = optimistic.createdAtISO;
+      // D19 — L2+ 위기 감지 시 핫라인 배너 활성 (L3/L4 도달 시 downgrade 안 함)
+      const next = bannerForLevel(result.riskLevel);
+      if (next && bannerLevel !== "L4" && bannerLevel !== "L3") {
+        setBannerLevel(next);
+      } else if (next === "L4" || next === "L3") {
+        setBannerLevel(next);
+      }
     });
   }
 
+  function bannerForLevel(level: RiskLevelOut | undefined): BannerLevel | null {
+    if (level === "L2" || level === "L3" || level === "L4") return level;
+    return null;
+  }
+
   return (
-    <div className="rounded-lg border border-border bg-background">
+    <div className="space-y-3">
+      {bannerLevel && <RiskBanner level={bannerLevel} />}
+      <div className="rounded-lg border border-border bg-background">
       <div
         ref={scrollRef}
         className="h-[60vh] overflow-y-auto px-4 py-4 space-y-3"
@@ -124,6 +141,7 @@ export function ChatRoom({
           보내기
         </Button>
       </form>
+      </div>
     </div>
   );
 }

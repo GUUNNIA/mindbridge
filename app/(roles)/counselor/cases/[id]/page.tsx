@@ -14,6 +14,7 @@ import {
 import { authOptions } from "@/lib/auth";
 import { getCounselorCase } from "@/lib/actions/counselor-cases";
 import { enterSessionFromBooking } from "@/lib/actions/session";
+import { listRiskFlagsForSubject } from "@/lib/actions/risk";
 
 const KST = "Asia/Seoul";
 
@@ -78,6 +79,11 @@ export default async function CounselorCaseDetailPage({
   const result = await getCounselorCase({ bookingId: id });
   if (!result.ok) notFound();
   const c = result.case;
+
+  // D19 — 본인 케이스의 직원에 대한 RiskFlag 목록 (active only)
+  const riskFlags = await listRiskFlagsForSubject({
+    subjectUserId: c.employee.id,
+  });
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-4">
@@ -152,6 +158,49 @@ export default async function CounselorCaseDetailPage({
         </CardContent>
       </Card>
 
+      {riskFlags.length > 0 && (
+        <Card className="border-risk-l2/40 bg-risk-l2/5">
+          <CardHeader>
+            <CardTitle className="text-lg text-risk-l3">
+              위기 신호 ({riskFlags.length}건)
+            </CardTitle>
+            <CardDescription>
+              직원의 자가진단·세션 메시지·노트에서 감지된 위험 플래그. 높은 레벨 우선 표시.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {riskFlags.slice(0, 5).map((r) => (
+              <div
+                key={r.id}
+                className="flex items-start justify-between gap-3 rounded-md border border-border bg-background px-3 py-2"
+              >
+                <div className="flex-1 space-y-1">
+                  <div className="flex items-baseline gap-2">
+                    <RiskLevelPill level={r.level} />
+                    <span className="text-xs text-muted-foreground">{r.sourceType}</span>
+                    <span className="text-xs text-muted-foreground">
+                      · {r.createdAt.toLocaleString("ko-KR", { timeZone: "Asia/Seoul", hour12: false })}
+                    </span>
+                  </div>
+                  {r.summary && <p className="text-foreground">{r.summary}</p>}
+                  {r.signals?.keywords && r.signals.keywords.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      신호: {r.signals.keywords.slice(0, 5).join(", ")}
+                    </p>
+                  )}
+                </div>
+                <span className="text-xs text-muted-foreground italic">{r.status}</span>
+              </div>
+            ))}
+            {riskFlags.length > 5 && (
+              <p className="text-xs text-muted-foreground italic">
+                +{riskFlags.length - 5}건 (운영자 큐에서 전체 확인)
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
@@ -207,6 +256,28 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
       <span className="text-muted-foreground">{label}</span>
       <span className="text-foreground text-right">{children}</span>
     </div>
+  );
+}
+
+function RiskLevelPill({ level }: { level: string }) {
+  const colorByLevel: Record<string, string> = {
+    L1_NOTICE: "bg-risk-l1 text-foreground",
+    L2_ALERT: "bg-risk-l2 text-white",
+    L3_ESCALATION: "bg-risk-l3 text-white",
+    L4_EMERGENCY: "bg-risk-l3 text-white animate-pulse",
+  };
+  const labelByLevel: Record<string, string> = {
+    L1_NOTICE: "L1 주의",
+    L2_ALERT: "L2 경고",
+    L3_ESCALATION: "L3 위기",
+    L4_EMERGENCY: "L4 응급",
+  };
+  return (
+    <span
+      className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${colorByLevel[level] ?? ""}`}
+    >
+      {labelByLevel[level] ?? level}
+    </span>
   );
 }
 

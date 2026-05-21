@@ -7,6 +7,8 @@ import { withAuth } from "@/lib/with-auth";
 import { assistantReply, detectCrisis, shouldComplete } from "@/lib/ai/triage";
 import { classifyCategory } from "@/lib/ai/client";
 import { encryptField, decryptField } from "@/lib/crypto/field";
+import { assessAndFlag } from "@/lib/actions/risk";
+import type { RiskLevelOut } from "@/lib/ai/risk";
 
 /**
  * PRD §6.1.1 직원 자가진단 Server Actions.
@@ -48,6 +50,7 @@ export type SendMessageResult = {
   reply: string;
   completed?: boolean;
   riskFlagged?: boolean;
+  riskLevel?: RiskLevelOut;
 };
 
 export const sendAssessmentMessage = withAuth(
@@ -89,7 +92,7 @@ export const sendAssessmentMessage = withAuth(
 
     // D18 — 본인 메시지 enc 후 INSERT
     const encUser = encryptField(text);
-    await prisma.assessmentResponse.create({
+    const userResponse = await prisma.assessmentResponse.create({
       data: {
         assessmentId: assessment.id,
         role: "USER",
@@ -97,6 +100,20 @@ export const sendAssessmentMessage = withAuth(
         encKeyVersion: encUser.encKeyVersion,
         riskFlagged: isCrisis,
       },
+      select: { id: true },
+    });
+
+    // D19 — assess_risk 호출 → L1+ 시 RiskFlag INSERT
+    const employee = await prisma.user.findUnique({
+      where: { id: ctx.user.id },
+      select: { companyId: true },
+    });
+    const riskOutcome = await assessAndFlag(prisma, {
+      text,
+      sourceType: "ASSESSMENT_RESPONSE",
+      sourceId: userResponse.id,
+      subjectUserId: ctx.user.id,
+      companyId: employee?.companyId ?? null,
     });
 
     // 이전 메시지 decrypt 해서 transcript 누적·shouldComplete 계산
@@ -125,7 +142,7 @@ export const sendAssessmentMessage = withAuth(
           encKeyVersion: encReply.encKeyVersion,
         },
       });
-      return { reply, riskFlagged: isCrisis };
+      return { reply, riskFlagged: isCrisis, riskLevel: riskOutcome.level };
     }
 
     // 완료 — 종합 멘트 + classify_category
@@ -173,6 +190,11 @@ export const sendAssessmentMessage = withAuth(
       },
     });
 
-    return { reply: closingMsg, completed: true, riskFlagged: isCrisis };
+    return {
+      reply: closingMsg,
+      completed: true,
+      riskFlagged: isCrisis,
+      riskLevel: riskOutcome.level,
+    };
   },
 );

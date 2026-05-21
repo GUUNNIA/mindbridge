@@ -11,7 +11,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { RiskBanner, type BannerLevel } from "@/components/risk-banner";
 import { sendAssessmentMessage } from "@/lib/actions/assessment";
+import type { RiskLevelOut } from "@/lib/ai/risk";
 
 type Message = {
   id: string;
@@ -40,6 +42,7 @@ export function AssessmentChat({
   const [input, setInput] = useState("");
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [bannerLevel, setBannerLevel] = useState<BannerLevel | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -68,6 +71,11 @@ export function AssessmentChat({
           content: result.reply,
         };
         setMessages((prev) => [...prev, assistantMsg]);
+        // D19 — L2+ 위기 감지 시 핫라인 배너 노출 (한 번 켜지면 끝까지 유지)
+        const newBanner = bannerForLevel(result.riskLevel);
+        if (newBanner && bannerLevel !== "L4" && bannerLevel !== "L3") {
+          setBannerLevel(newBanner);
+        }
         if (result.completed) {
           router.push(`/app/assessment/${assessmentId}/result`);
         }
@@ -77,8 +85,15 @@ export function AssessmentChat({
     });
   }
 
+  function bannerForLevel(level: RiskLevelOut | undefined): BannerLevel | null {
+    if (level === "L2" || level === "L3" || level === "L4") return level;
+    return null;
+  }
+
   return (
-    <Card className="mx-auto w-full max-w-2xl">
+    <div className="mx-auto w-full max-w-2xl space-y-3">
+      {bannerLevel && <RiskBanner level={bannerLevel} />}
+      <Card>
       <CardHeader>
         <CardTitle className="text-2xl text-brand-700">자가진단</CardTitle>
         <CardDescription>4~6턴 대화 후 카테고리·심각도를 안내드립니다.</CardDescription>
@@ -119,7 +134,8 @@ export function AssessmentChat({
           </Button>
         </form>
       </CardContent>
-    </Card>
+      </Card>
+    </div>
   );
 }
 

@@ -7,6 +7,8 @@ import { prisma } from "@/lib/db";
 import { withAuth } from "@/lib/with-auth";
 import { messagingProvider } from "@/lib/messaging/provider";
 import { encryptField, decryptField } from "@/lib/crypto/field";
+import { assessAndFlag } from "@/lib/actions/risk";
+import type { RiskLevelOut } from "@/lib/ai/risk";
 
 /**
  * 세션룸 Server Actions (Day 15, PRD §6.1.1).
@@ -133,7 +135,7 @@ const sendMessageSchema = z.object({
 });
 
 export type SendMessageResult =
-  | { ok: true; messageId: string }
+  | { ok: true; messageId: string; riskLevel?: RiskLevelOut }
   | { ok: false; error: string };
 
 export const sendSessionMessage = withAuth(
@@ -197,7 +199,21 @@ export const sendSessionMessage = withAuth(
       payload: { messageId: message.id, role },
     });
 
-    return { ok: true, messageId: message.id };
+    // D19 — assess_risk 호출. subjectUserId 는 항상 EMPLOYEE 측 (상담사 발화도
+    // 직원 케이스 위험 평가). companyId 는 직원 회사 기준.
+    const employee = await prisma.user.findUnique({
+      where: { id: session.employeeId },
+      select: { companyId: true },
+    });
+    const riskOutcome = await assessAndFlag(prisma, {
+      text: parsed.data.content,
+      sourceType: "SESSION_MESSAGE",
+      sourceId: message.id,
+      subjectUserId: session.employeeId,
+      companyId: employee?.companyId ?? null,
+    });
+
+    return { ok: true, messageId: message.id, riskLevel: riskOutcome.level };
   },
 );
 

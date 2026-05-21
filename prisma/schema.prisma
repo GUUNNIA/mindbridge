@@ -150,6 +150,27 @@ enum ClinicalNoteStatus {
   FINALIZED
 }
 
+enum RiskLevel {
+  L1_NOTICE // 부정 정서·PHQ-9 ≥10 — 상담사 플래그 (조용)
+  L2_ALERT // 자해·자살 사고 — 상담사·운영자 즉시 + 직원 핫라인 노출
+  L3_ESCALATION // 구체적 계획·수단 — 24h 전문의 리뷰 (D20 Escalation)
+  L4_EMERGENCY // 즉각 위협 — V1 수동, V2 자동 119
+}
+
+enum RiskStatus {
+  PENDING // 신규 생성, 미확인
+  ACKNOWLEDGED // 상담사·운영자 확인
+  ESCALATED // L3 → 전문의 큐로 (D20)
+  RESOLVED // 종결 (전문의 사인오프 또는 운영자 디스미스)
+  DISMISSED // false positive — 운영자가 무효 처리
+}
+
+enum RiskSourceType {
+  ASSESSMENT_RESPONSE
+  SESSION_MESSAGE
+  CLINICAL_NOTE
+}
+
 // ============================================================
 // 사용자·조직
 // ============================================================
@@ -203,6 +224,8 @@ model User {
   sessionMessages   SessionMessage[] @relation("SentMessages")
   counselorNotes    ClinicalNote[]   @relation("CounselorNotes")
   employeeNotes     ClinicalNote[]   @relation("EmployeeNotes")
+  riskFlagsAsSubject RiskFlag[]      @relation("RiskSubject")
+  riskFlagsAcked    RiskFlag[]       @relation("RiskAcker")
 
   @@index([companyId, role])
   @@index([status, role])
@@ -650,7 +673,44 @@ model ClinicalNote {
 }
 
 // ============================================================
+// Day 19: RiskFlag — 위기 신호 감지 (polymorphic source).
+// PRD §5.3 + 기획안 §8. assess_risk tool 이 INSERT, 상담사·운영자·전문의 큐가 read.
+// signals 는 키워드 매칭·맥락 신호 (JSON: { keywords, score, ... }).
+// ============================================================
+model RiskFlag {
+  id String @id @default(uuid())
+
+  // polymorphic source — (sourceType, sourceId) 페어로 원천 식별
+  sourceType RiskSourceType
+  sourceId   String
+
+  // 위기 대상 (직원 User.id). 운영자·전문의 큐에서 회사 격리·익명화 anchor
+  subjectUserId String
+  companyId     String?
+
+  level   RiskLevel
+  status  RiskStatus @default(PENDING)
+  signals Json // { keywords: string[], score?: number, snippet?: string }
+  summary String? // 1~2 줄 사람용 요약 (D18 enc 대상 아님 — 운영자 큐 표시)
+
+  acknowledgedAt   DateTime?
+  acknowledgedById String?
+  dismissReason    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subject        User         @relation("RiskSubject", fields: [subjectUserId], references: [id])
+  acknowledgedBy User?        @relation("RiskAcker", fields: [acknowledgedById], references: [id])
+
+  @@index([level, status])
+  @@index([subjectUserId, createdAt])
+  @@index([companyId, createdAt])
+  @@index([sourceType, sourceId])
+}
+
+// ============================================================
 // W3~W4 엔티티는 별도 마이그레이션에서 추가:
-// - W3 (D19+): Feedback, RiskFlag, Escalation
+// - W3 (D20+): Feedback, Escalation
 // - W4: HRReport, Notification
 // ============================================================
