@@ -25,6 +25,7 @@ export type AppSubject =
   | "Consent"
   | "Counselor"
   | "CounselorRecommendation"
+  | "CaseAssessment"
   | "AuditLog"
   // W2/W3/W4 placeholder (실제 모델은 추후 마이그레이션에서 추가)
   | "OwnAssessment"
@@ -83,6 +84,9 @@ export function defineAbilityFor(user: AbilityUser): AppAbility {
       can("read", "Payout");
       can("read", "Counselor");
       can("update", "Counselor"); // 본인 프로필
+      // D16: 본인 담당 booking·자가진단 요약 read (자원 단위 필터는 server action 에서 booking.counselorId 검증)
+      can("read", "Booking");
+      can("read", "CaseAssessment");
       break;
     }
 

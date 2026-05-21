@@ -89,6 +89,20 @@ describe("CASL abilities — 5롤별 권한 매트릭스 (PRD §2.2)", () => {
     expect(a.can("update", "Session")).toBe(false);
   });
 
+  it("COUNSELOR: Booking R + CaseAssessment R 허용 (Day 16 본인 담당 케이스)", () => {
+    const a = defineAbilityFor({ ...baseUser, role: "COUNSELOR" });
+    expect(a.can("read", "Booking")).toBe(true);
+    expect(a.can("read", "CaseAssessment")).toBe(true);
+    expect(a.can("create", "Booking")).toBe(false); // 상담사는 본인이 예약 생성 안 함
+  });
+
+  it("EMPLOYEE/HR/PSYCHIATRIST: CaseAssessment 거부 (상담사 view 자원)", () => {
+    for (const role of ["EMPLOYEE", "HR", "PSYCHIATRIST"] as const) {
+      const a = defineAbilityFor({ ...baseUser, role });
+      expect(a.can("read", "CaseAssessment")).toBe(false);
+    }
+  });
+
   it("ADMIN: manage all + AuditLog R", () => {
     const a = defineAbilityFor({ ...baseUser, role: "ADMIN" });
     expect(a.can("read", "AuditLog")).toBe(true);
