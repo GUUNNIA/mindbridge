@@ -13,6 +13,18 @@ describe("CASL abilities — 5롤별 권한 매트릭스 (PRD §2.2)", () => {
     expect(a.can("read", "Payout")).toBe(false);
   });
 
+  it("EMPLOYEE: CounselorRecommendation R/Create 허용, Counselor 직접 read 거부", () => {
+    const a = defineAbilityFor({ ...baseUser, role: "EMPLOYEE" });
+    expect(a.can("read", "CounselorRecommendation")).toBe(true);
+    expect(a.can("create", "CounselorRecommendation")).toBe(true);
+    expect(a.can("read", "Counselor")).toBe(false);
+  });
+
+  it("HR: CounselorRecommendation 거부 (개인 식별 자원 접근 금지)", () => {
+    const a = defineAbilityFor({ ...baseUser, role: "HR" });
+    expect(a.can("read", "CounselorRecommendation")).toBe(false);
+  });
+
   it("COUNSELOR: ClinicalNote/Session R/W, AuditLog/HRReport 거부", () => {
     const a = defineAbilityFor({ ...baseUser, role: "COUNSELOR" });
     expect(a.can("read", "ClinicalNote")).toBe(true);

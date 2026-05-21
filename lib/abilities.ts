@@ -24,6 +24,7 @@ export type AppSubject =
   | "InviteCode"
   | "Consent"
   | "Counselor"
+  | "CounselorRecommendation"
   | "AuditLog"
   // W2/W3/W4 placeholder (실제 모델은 추후 마이그레이션에서 추가)
   | "OwnAssessment"
@@ -87,6 +88,7 @@ export function defineAbilityFor(user: AbilityUser): AppAbility {
 
     case "EMPLOYEE": {
       can(["read", "create", "update"], "OwnAssessment");
+      can(["read", "create"], "CounselorRecommendation");
       can("read", "Session"); // 본인 세션
       can("read", "ClinicalNote"); // 직원용 요약만 — W3 conditions
       can("create", "Booking");

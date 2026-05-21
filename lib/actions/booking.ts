@@ -24,7 +24,7 @@ export interface SlotView {
 }
 
 export const listCounselorSlots = withAuth(
-  { action: "read", subject: "Counselor" },
+  { action: "read", subject: "Booking" },
   async (
     _ctx,
     input: { counselorId: string },

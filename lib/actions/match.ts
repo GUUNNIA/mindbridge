@@ -31,7 +31,7 @@ export interface RecommendedCounselor {
 }
 
 export const listRecommendedCounselors = withAuth(
-  { action: "read", subject: "Counselor" },
+  { action: "read", subject: "CounselorRecommendation" },
   async (ctx, input: { assessmentId: string }): Promise<RecommendedCounselor[]> => {
     const assessment = await prisma.assessment.findUnique({
       where: { id: input.assessmentId },
