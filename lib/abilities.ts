@@ -34,6 +34,7 @@ export type AppSubject =
   | "Booking"
   | "Payout"
   | "RiskAlert"
+  | "Escalation"
   | "HRReport"
   | "Notification"
   | "all";
@@ -73,6 +74,10 @@ export function defineAbilityFor(user: AbilityUser): AppAbility {
       can("read", "ClinicalNote");
       can("read", "RiskAlert");
       can("read", "Payout"); // 본인 — W3 conditions 보강
+      // D20: 에스컬레이션 큐 read + 사인오프 update. 본인 큐 필터·
+      // 자원 단위 격리는 server action 에서 reviewerId 검증.
+      can("read", "Escalation");
+      can("update", "Escalation");
       break;
     }
 

@@ -5,6 +5,7 @@ import type { Prisma, RiskLevel, RiskSourceType } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { withAuth } from "@/lib/with-auth";
 import { assessRisk, toPrismaRiskLevel, type RiskLevelOut } from "@/lib/ai/risk";
+import { computeSlaDueAt } from "@/lib/escalation/sla";
 
 /**
  * 위기 감지·플래그 server actions (Day 19, PRD §6.3 + §8).
@@ -30,6 +31,7 @@ export interface FlagResult {
   level: RiskLevelOut;
   riskFlagId: string | null; // NONE 이면 null
   signals: { keywords: string[]; snippet?: string };
+  escalationId: string | null; // L3 일 때만 채워짐 (D20 자동 생성)
 }
 
 type Tx = Prisma.TransactionClient | typeof prisma;
@@ -45,6 +47,7 @@ export async function assessAndFlag(tx: Tx, input: FlagInput): Promise<FlagResul
     return {
       level: "NONE",
       riskFlagId: null,
+      escalationId: null,
       signals: { keywords: result.signals.keywords ?? [], snippet: result.signals.snippet },
     };
   }
@@ -54,9 +57,14 @@ export async function assessAndFlag(tx: Tx, input: FlagInput): Promise<FlagResul
     return {
       level: "NONE",
       riskFlagId: null,
+      escalationId: null,
       signals: { keywords: result.signals.keywords ?? [], snippet: result.signals.snippet },
     };
   }
+
+  // L3 는 RiskFlag.status 를 즉시 ESCALATED 로 — 운영자 큐에서 "이미 전문의 큐로 이관됨" 표시.
+  // L4 는 V1 수동 (PRD §1.3 Out-of-scope), Escalation 자동 생성 안 함 — 화면 안내 + 운영자 즉시 대응.
+  const isL3 = result.level === "L3";
 
   const flag = await tx.riskFlag.create({
     data: {
@@ -65,15 +73,31 @@ export async function assessAndFlag(tx: Tx, input: FlagInput): Promise<FlagResul
       subjectUserId: input.subjectUserId,
       companyId: input.companyId ?? null,
       level: prismaLevel as RiskLevel,
+      status: isL3 ? "ESCALATED" : "PENDING",
       signals: result.signals as unknown as Prisma.InputJsonValue,
       summary: result.summary,
     },
     select: { id: true },
   });
 
+  let escalationId: string | null = null;
+  if (isL3) {
+    const esc = await tx.escalation.create({
+      data: {
+        riskFlagId: flag.id,
+        subjectUserId: input.subjectUserId,
+        companyId: input.companyId ?? null,
+        slaDueAt: computeSlaDueAt(),
+      },
+      select: { id: true },
+    });
+    escalationId = esc.id;
+  }
+
   return {
     level: result.level,
     riskFlagId: flag.id,
+    escalationId,
     signals: { keywords: result.signals.keywords ?? [], snippet: result.signals.snippet },
   };
 }

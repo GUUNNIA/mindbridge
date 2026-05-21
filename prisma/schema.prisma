@@ -123,6 +123,7 @@ enum NotificationType {
   BOOKING_CONFIRMED
   BOOKING_CANCELED
   BOOKING_REMINDER
+  ESCALATION_EXPIRED // D20: SLA 만료 시 운영자 알림
 }
 
 enum OutboxStatus {
@@ -169,6 +170,16 @@ enum RiskSourceType {
   ASSESSMENT_RESPONSE
   SESSION_MESSAGE
   CLINICAL_NOTE
+}
+
+// D20: Escalation 워크플로우 상태기 (PRD §5.4).
+// PENDING → IN_REVIEW (전문의 진입) → DECIDED (사인오프)
+// PENDING/IN_REVIEW → EXPIRED (SLA 만료, cron). 재배정은 V1 미구현 — 운영자 알림만.
+enum EscalationStatus {
+  PENDING
+  IN_REVIEW
+  DECIDED
+  EXPIRED
 }
 
 // ============================================================
@@ -226,6 +237,8 @@ model User {
   employeeNotes     ClinicalNote[]   @relation("EmployeeNotes")
   riskFlagsAsSubject RiskFlag[]      @relation("RiskSubject")
   riskFlagsAcked    RiskFlag[]       @relation("RiskAcker")
+  escalationsAsSubject  Escalation[] @relation("EscalationSubject")
+  escalationsAsReviewer Escalation[] @relation("EscalationReviewer")
 
   @@index([companyId, role])
   @@index([status, role])
@@ -702,6 +715,7 @@ model RiskFlag {
 
   subject        User         @relation("RiskSubject", fields: [subjectUserId], references: [id])
   acknowledgedBy User?        @relation("RiskAcker", fields: [acknowledgedById], references: [id])
+  escalation     Escalation?
 
   @@index([level, status])
   @@index([subjectUserId, createdAt])
@@ -710,7 +724,49 @@ model RiskFlag {
 }
 
 // ============================================================
-// W3~W4 엔티티는 별도 마이그레이션에서 추가:
-// - W3 (D20+): Feedback, Escalation
+// Day 20: Escalation — L3 RiskFlag 전용 전문의 워크플로우.
+// PRD §5.4 + §6.1.3 + BR-6. RiskFlag 1:1. assess_risk 가 L3 감지 시
+// 같은 트랜잭션에서 자동 생성 (assessAndFlag). reviewerId 는 IN_REVIEW
+// 전이 시 claim (현 reviewer 잠금 — V1 단순화: 동시 reviewer 1명).
+// slaDueAt 은 createdAt + ESCALATION_SLA_HOURS (env, default 24).
+// ============================================================
+model Escalation {
+  id            String           @id @default(uuid())
+  riskFlagId    String           @unique
+  subjectUserId String // 직원 User.id (= RiskFlag.subjectUserId snapshot)
+  companyId     String?
+  status        EscalationStatus @default(PENDING)
+
+  slaDueAt DateTime // PENDING/IN_REVIEW 상태에서 이 시각 초과 시 EXPIRED 후보
+
+  // 리뷰어 (PSYCHIATRIST User.id). PENDING → IN_REVIEW 시 claim.
+  reviewerId      String?
+  reviewStartedAt DateTime?
+
+  // 사인오프 결과 (US-P1 AC2: 의견 입력 필수 + 가족 동의 체크박스)
+  decision      String? // 자유 텍스트 (예: "follow_up_2w", "external_referral")
+  decisionNote  String?
+  familyConsent Boolean   @default(false)
+  decidedAt     DateTime?
+
+  expiredAt DateTime? // SLA cron 이 EXPIRED 전이 시 기록
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  riskFlag RiskFlag @relation(fields: [riskFlagId], references: [id], onDelete: Cascade)
+  subject  User     @relation("EscalationSubject", fields: [subjectUserId], references: [id])
+  reviewer User?    @relation("EscalationReviewer", fields: [reviewerId], references: [id])
+
+  // 큐 조회: 상태별 SLA 임박 정렬
+  @@index([status, slaDueAt])
+  // 본인 큐: reviewer 가 잠근 IN_REVIEW + 자유 PENDING 모두 표시 필요 → 둘 다 사용
+  @@index([reviewerId, status])
+  @@index([companyId, createdAt])
+}
+
+// ============================================================
+// W3~W4 잔여 엔티티는 별도 마이그레이션에서 추가:
+// - W3 (D21): Feedback
 // - W4: HRReport, Notification
 // ============================================================

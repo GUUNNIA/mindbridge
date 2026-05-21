@@ -110,4 +110,30 @@ describe("CASL abilities — 5롤별 권한 매트릭스 (PRD §2.2)", () => {
     expect(a.can("manage", "Payout")).toBe(true);
     expect(a.can("manage", "RiskAlert")).toBe(true);
   });
+
+  // D20 — Escalation subject 5롤 cross-check.
+  // 새 subject 도입 시 5롤 cross-check 필수 (이전 D10·D11 회귀 학습).
+  it("PSYCHIATRIST: Escalation R/Update 허용 (큐 + 사인오프)", () => {
+    const a = defineAbilityFor({ ...baseUser, role: "PSYCHIATRIST" });
+    expect(a.can("read", "Escalation")).toBe(true);
+    expect(a.can("update", "Escalation")).toBe(true);
+    expect(a.can("create", "Escalation")).toBe(false); // 생성은 system (assessAndFlag) 만
+    expect(a.can("delete", "Escalation")).toBe(false);
+  });
+
+  it("ADMIN: Escalation manage 허용 (전체 모니터링)", () => {
+    const a = defineAbilityFor({ ...baseUser, role: "ADMIN" });
+    expect(a.can("manage", "Escalation")).toBe(true);
+    expect(a.can("read", "Escalation")).toBe(true);
+    expect(a.can("update", "Escalation")).toBe(true);
+  });
+
+  it("EMPLOYEE/COUNSELOR/HR: Escalation 모든 액션 거부", () => {
+    for (const role of ["EMPLOYEE", "COUNSELOR", "HR"] as const) {
+      const a = defineAbilityFor({ ...baseUser, role });
+      expect(a.can("read", "Escalation")).toBe(false);
+      expect(a.can("update", "Escalation")).toBe(false);
+      expect(a.can("create", "Escalation")).toBe(false);
+    }
+  });
 });

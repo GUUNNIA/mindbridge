@@ -14,7 +14,14 @@ export interface BookingPayload {
   bookingId: string;
 }
 
-export type TemplatePayload = BookingPayload;
+export interface EscalationExpiredPayload {
+  escalationId: string;
+  subjectAnonymizedId: string; // 운영자 화면 익명 표시
+  riskSummary: string | null;
+  slaDueAtKST: string; // pre-formatted
+}
+
+export type TemplatePayload = BookingPayload | EscalationExpiredPayload;
 
 export interface Rendered {
   subject: string;
@@ -75,16 +82,43 @@ function renderBookingReminder(p: BookingPayload): Rendered {
   return { subject, html, text };
 }
 
+function renderEscalationExpired(p: EscalationExpiredPayload): Rendered {
+  const subject = `[MindBridge] 위기 에스컬레이션 SLA 만료 — ${p.subjectAnonymizedId}`;
+  const text =
+    `위기 에스컬레이션 SLA 가 만료됐습니다. 운영자 즉시 확인 필요.\n\n` +
+    `대상(익명 ID): ${p.subjectAnonymizedId}\n` +
+    `SLA 만료(KST): ${p.slaDueAtKST}\n` +
+    (p.riskSummary ? `요약: ${p.riskSummary}\n` : "") +
+    `\n에스컬레이션 ID: ${p.escalationId}\n— MindBridge`;
+  const html =
+    `<div style="font-family:system-ui,sans-serif;font-size:14px;line-height:1.6;color:#1f2937;">` +
+    `<h2 style="color:#b91c1c;margin:0 0 12px;">위기 에스컬레이션 SLA 만료</h2>` +
+    `<p>전문의 사인오프가 SLA 내 미완료. 운영자 즉시 확인 필요.</p>` +
+    `<table style="border-collapse:collapse;margin:12px 0;">` +
+    `<tr><td style="padding:4px 12px 4px 0;color:#6b7280;">대상</td><td style="padding:4px 0;">${escapeHtml(p.subjectAnonymizedId)}</td></tr>` +
+    `<tr><td style="padding:4px 12px 4px 0;color:#6b7280;">SLA 만료 (KST)</td><td style="padding:4px 0;">${escapeHtml(p.slaDueAtKST)}</td></tr>` +
+    (p.riskSummary
+      ? `<tr><td style="padding:4px 12px 4px 0;color:#6b7280;">요약</td><td style="padding:4px 0;">${escapeHtml(p.riskSummary)}</td></tr>`
+      : "") +
+    `</table>` +
+    `<p style="color:#6b7280;font-size:12px;">에스컬레이션 ID: ${escapeHtml(p.escalationId)}</p>` +
+    `<p style="color:#6b7280;font-size:12px;">— MindBridge</p>` +
+    `</div>`;
+  return { subject, html, text };
+}
+
 export function renderTemplate(type: NotificationType, payload: TemplatePayload): Rendered {
   switch (type) {
     case "BOOKING_REQUESTED":
-      return renderBookingRequested(payload);
+      return renderBookingRequested(payload as BookingPayload);
     case "BOOKING_CONFIRMED":
-      return renderBookingConfirmed(payload);
+      return renderBookingConfirmed(payload as BookingPayload);
     case "BOOKING_CANCELED":
-      return renderBookingCanceled(payload);
+      return renderBookingCanceled(payload as BookingPayload);
     case "BOOKING_REMINDER":
-      return renderBookingReminder(payload);
+      return renderBookingReminder(payload as BookingPayload);
+    case "ESCALATION_EXPIRED":
+      return renderEscalationExpired(payload as EscalationExpiredPayload);
   }
 }
 
