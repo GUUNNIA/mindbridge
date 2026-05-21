@@ -121,7 +121,7 @@
 ### Day 28 (화) — 리허설 + DB 스냅샷 + 최종 polish
 
 ### W3 에서 못 한 항목 / Follow-up
-- **EXPIRED Escalation UI 갭** — 전문의가 IN_REVIEW로 잡았다가 SLA 만료되면 큐에서 사라짐. ADMIN만 보임. W4 polish 또는 V2
+- ~~**EXPIRED Escalation UI 갭**~~ — D21 후 carry-over fix 완료 (commit `48fa7eb`). PSYCHIATRIST 본인 reviewer였던 EXPIRED 케이스는 24h 동안 큐에 잔존 + 상단 안내 배너. E2E 회귀 spec 추가
 - **상담사가 본인 받은 피드백 코멘트 read** — 현재 V1은 집계만, 코멘트 V2
 - **L4 자동 emergency 통보** — V1 화면 안내만, 119 자동 연계 V2
 - **세션 종료의 양측 합의 흐름** — V1은 한 명만 눌러도 종료. 양측 종료 흐름 V2
@@ -143,6 +143,7 @@
 | D19 | `b7566d5` | assess_risk + RiskFlag + L1~L4 + 핫라인 배너 |
 | D20 | `eca1497` | Escalation 큐 + 전문의 사인오프 + SLA cron |
 | D21 | `0ab9811` | UC-5 피드백 + 세션 종료 + Week 3 회귀 E2E |
+| D21+ | `48fa7eb` | (carry-over) EXPIRED Escalation 본인 큐 잔존 (24h) |
 
 - 테스트 계정 (모든 비밀번호 `testpass1234`):
   - 직원: `employee@mindbridge.test`
