@@ -132,6 +132,19 @@ enum OutboxStatus {
   DEAD
 }
 
+enum SessionStatus {
+  SCHEDULED // Booking CONFIRMED 후 입장 전
+  IN_PROGRESS // 한 명 이상 입장 (D15: 단순화 — 첫 입장 시 전이)
+  COMPLETED // 두 명 다 퇴장 또는 시간 종료
+  CANCELED
+}
+
+enum SessionMessageRole {
+  EMPLOYEE
+  COUNSELOR
+  SYSTEM // 입장·퇴장 안내 등
+}
+
 // ============================================================
 // 사용자·조직
 // ============================================================
@@ -178,6 +191,11 @@ model User {
   assessments       Assessment[]
   employeeBookings  Booking[]    @relation("EmployeeBookings")
   counselorBookings Booking[]    @relation("CounselorBookings")
+
+  // W3
+  employeeSessions  Session[]        @relation("EmployeeSessions")
+  counselorSessions Session[]        @relation("CounselorSessions")
+  sessionMessages   SessionMessage[] @relation("SentMessages")
 
   @@index([companyId, role])
   @@index([status, role])
@@ -500,6 +518,9 @@ model Booking {
   @@index([employeeId, scheduledAt])
   @@index([counselorId, scheduledAt])
   @@index([status, scheduledAt])
+
+  // W3 Day 15: Booking 1:1 Session
+  session Session?
 }
 
 // ============================================================
@@ -537,7 +558,55 @@ model NotificationOutbox {
 }
 
 // ============================================================
+// Day 15: Session + SessionMessage — 상담 세션룸 (실시간 채팅).
+// V1 Pusher 대신 mock provider + client polling (3s) — 시연 무중단 우선.
+// content 는 Day 18 에 AES-256-GCM 컬럼 암호화 적용 예정 (encKeyVersion).
+// ============================================================
+model Session {
+  id          String        @id @default(uuid())
+  bookingId   String        @unique
+  employeeId  String // User.id (EMPLOYEE)
+  counselorId String // User.id (COUNSELOR)
+  status      SessionStatus @default(SCHEDULED)
+
+  startedAt DateTime?
+  endedAt   DateTime?
+
+  // Day 18 컬럼 암호화 준비 (현재 평문, 추후 enc 적용)
+  encKeyVersion Int @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  booking   Booking          @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  employee  User             @relation("EmployeeSessions", fields: [employeeId], references: [id])
+  counselor User             @relation("CounselorSessions", fields: [counselorId], references: [id])
+  messages  SessionMessage[]
+
+  @@index([employeeId, createdAt])
+  @@index([counselorId, createdAt])
+  @@index([status, createdAt])
+}
+
+model SessionMessage {
+  id        String             @id @default(uuid())
+  sessionId String
+  senderId  String? // null = SYSTEM
+  role      SessionMessageRole
+  content   String // D18 enc 예정
+
+  encKeyVersion Int @default(1)
+
+  createdAt DateTime @default(now())
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sender  User?   @relation("SentMessages", fields: [senderId], references: [id])
+
+  @@index([sessionId, createdAt])
+}
+
+// ============================================================
 // W3~W4 엔티티는 별도 마이그레이션에서 추가:
-// - W3: Session, SessionMessage, ClinicalNote, Feedback, RiskFlag, Escalation
+// - W3 (D17+): ClinicalNote, Feedback, RiskFlag, Escalation
 // - W4: HRReport, Notification
 // ============================================================

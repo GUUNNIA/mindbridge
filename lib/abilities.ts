@@ -89,7 +89,7 @@ export function defineAbilityFor(user: AbilityUser): AppAbility {
     case "EMPLOYEE": {
       can(["read", "create", "update"], "OwnAssessment");
       can(["read", "create"], "CounselorRecommendation");
-      can("read", "Session"); // 본인 세션
+      can(["read", "update"], "Session"); // 본인 세션 (update = 입장·메시지 발송)
       can("read", "ClinicalNote"); // 직원용 요약만 — W3 conditions
       can("create", "Booking");
       can("read", "Booking");

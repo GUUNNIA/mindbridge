@@ -71,6 +71,24 @@ describe("CASL abilities — 5롤별 권한 매트릭스 (PRD §2.2)", () => {
     }
   });
 
+  it("EMPLOYEE: Session R/Update 허용 (Day 15 세션룸 입장·메시지)", () => {
+    const a = defineAbilityFor({ ...baseUser, role: "EMPLOYEE" });
+    expect(a.can("read", "Session")).toBe(true);
+    expect(a.can("update", "Session")).toBe(true);
+  });
+
+  it("COUNSELOR: Session R/Update 허용", () => {
+    const a = defineAbilityFor({ ...baseUser, role: "COUNSELOR" });
+    expect(a.can("read", "Session")).toBe(true);
+    expect(a.can("update", "Session")).toBe(true);
+  });
+
+  it("HR: Session 모든 액션 거부 (개인 식별 자원)", () => {
+    const a = defineAbilityFor({ ...baseUser, role: "HR" });
+    expect(a.can("read", "Session")).toBe(false);
+    expect(a.can("update", "Session")).toBe(false);
+  });
+
   it("ADMIN: manage all + AuditLog R", () => {
     const a = defineAbilityFor({ ...baseUser, role: "ADMIN" });
     expect(a.can("read", "AuditLog")).toBe(true);

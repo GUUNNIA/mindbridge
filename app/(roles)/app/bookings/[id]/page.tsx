@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/card";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { enterSessionFromBooking } from "@/lib/actions/session";
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
   REQUESTED: { label: "예약 요청됨", color: "bg-secondary text-secondary-foreground" },
@@ -77,9 +78,17 @@ export default async function BookingDetailPage({
           <Button asChild variant="outline" className="flex-1">
             <Link href="/app">홈으로</Link>
           </Button>
-          <Button disabled className="flex-1">
-            세션 입장 (Day 14~15 활성화)
-          </Button>
+          {canEnterSession(booking.status) ? (
+            <form action={enterSessionFromBooking.bind(null, booking.id)} className="flex-1">
+              <Button type="submit" className="w-full">
+                세션 입장
+              </Button>
+            </form>
+          ) : (
+            <Button disabled className="flex-1">
+              세션 입장 (취소된 예약)
+            </Button>
+          )}
         </CardFooter>
       </Card>
 
@@ -88,12 +97,21 @@ export default async function BookingDetailPage({
           <CardTitle className="text-sm">안내</CardTitle>
         </CardHeader>
         <CardContent className="text-xs text-muted-foreground space-y-1">
-          <p>상담사가 수락하면 상태가 CONFIRMED 로 바뀝니다.</p>
-          <p>예약 확정 이메일은 Day 12 Resend 도입 후 발송됩니다.</p>
+          <p>상담사가 수락하면 상태가 CONFIRMED 로 바뀝니다 (D16 수락 UI 도입 후).</p>
+          <p>예약 확정 이메일은 Outbox 로 enqueue 후 cron 발송 (현재 mock 모드).</p>
           <p>취소 UI 는 다음 Day 에 보강됩니다 — 지금은 운영자 문의 필요.</p>
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function canEnterSession(status: string): boolean {
+  return (
+    status !== "CANCELED_BY_USER" &&
+    status !== "CANCELED_BY_COUNSELOR" &&
+    status !== "NO_SHOW" &&
+    status !== "COMPLETED"
   );
 }
 
