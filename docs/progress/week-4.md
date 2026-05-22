@@ -179,16 +179,30 @@
 - **PDF 다운로드는 request.get** — page click 으로 다운로드 트리거하면 브라우저가 별도 다운로드 매니저 띄움. playwright `request` API 로 같은 URL 호출 + 같은 쿠키 보내서 200 + PDF magic + AuditLog 누적 검증
 - **HR spec 끝에 signOut, ADMIN spec 은 새 context 라 signOut 불필요** — 각 test 독립
 
-## 5. 다음 시작점 — Day 28
+### Day 28 (화) — 회고 + Vercel 배포 준비 + 최종 polish
 
-W4 마무리:
-- 한 달 회고 메모 (`docs/retrospective.md`)
-- Vercel 배포 — GitHub repo 연결 + 환경변수 등록 + 시드 1회 실행 + vercel.json cron 설정
-- 최종 polish — typecheck/vitest/E2E 그린 확인 + week-4.md 마무리
+- [x] `docs/retrospective.md` — 한 달 회고 (프로세스 검증 중심)
+  - 4주 흐름 1줄 요약 + 잘 작동한 패턴 5건 + 실패 교훈 5건 + Claude 활용 회고
+  - 다음 학습 사이클 가이드 + V2 backlog 정리
+- [x] `vercel.json` — cron 2건 (outbox / escalation-sla hourly, Hobby 면 일 1회로 변경 권고)
+- [x] `docs/setup.md §4.5` — Vercel 배포 가이드 (CRON_SECRET 생성 / NEXTAUTH_URL 갱신 / 시드 1회 실행 / Hobby vs Pro plan 제약 / 시연 후 정리)
+- 실제 Vercel 배포·환경변수 등록은 사용자 작업 (코드 관점에선 vercel.json + setup.md 까지 준비)
 
-### W4 잔여 일정
+**검증 (W4 게이트 충족)**:
+- typecheck clean
+- vitest 156/156
+- Playwright 4 specs 그린 (employee-journey · week-3-regression · psychiatrist-expired-queue · demo-scenario)
+- HR 익명성: k<5 마스킹 0건 위반 (단위 테스트 + E2E 검증)
+- 운영자 위기 ack UI 동작 (D26 risk-queue + D27 E2E)
+- 5롤 풀 시나리오 E2E 그린
 
-- D28 (화): 회고 + Vercel 배포 + 최종 polish
+### W4 완료
+
+- 36 commits 누적 (W0~W4)
+- 임계 경로 5롤 풀 사이클 모두 V1 동작
+- V1 에서 미룬 화면: `/admin/escalations`, `/admin/companies`, `/admin/payments`, `/admin/notifications`, `/admin/counselors`, `/counselor/calendar`, `/counselor/availability`, `/app/notifications`, `/app/settings/*` 5개 — PRD §11.B / IA §12.B V2 backlog 로 이관 (외부 청중 없는 학습 프로젝트 목적상 임계 경로만 V1)
+
+다음 사이클: `docs/retrospective.md §5` 참조 — V2 (Postgres RLS + 키 회전) 또는 새 도메인.
 
 ## 6. 참고 링크
 

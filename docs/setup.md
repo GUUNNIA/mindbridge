@@ -250,6 +250,72 @@ PowerShell (Windows):
 
 ---
 
+## 4.5 Vercel 배포 (Week 4 종료 시)
+
+W4까지 코드가 완성된 뒤 실제 배포를 할 때의 순서. **로컬 dev 가 잘 동작하는 시점에 진행**.
+
+### 4.5.1 사전 준비
+
+1. **모든 환경변수가 Vercel Settings → Environment Variables 에 등록**되어 있는지 (W0 단계에서 완료)
+   - DATABASE_URL, DIRECT_URL, ANONYMIZATION_SALT, ENCRYPTION_KEY_V1, NEXTAUTH_SECRET 필수
+   - ANTHROPIC_API_KEY 등록 시 실 Claude 호출 활성 (mock → real 전환)
+   - RESEND_API_KEY 등록 시 실 이메일 발송 (sandbox 모드 권장)
+   - PUSHER_* 는 V2 — 현재 mock messaging provider 로 충분
+2. **NEXTAUTH_URL 갱신**: 배포된 도메인으로 (예: `https://mindbridge-xxx.vercel.app`). 로컬 값(`http://localhost:3001`)이면 OAuth callback 실패
+3. **CRON_SECRET 신규 등록**: 32바이트 base64 또는 임의 긴 문자열. Vercel cron 호출 시 `Authorization: Bearer ${CRON_SECRET}` 자동 첨부
+   ```powershell
+   $bytes = New-Object byte[] 32
+   [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+   [Convert]::ToBase64String($bytes)
+   ```
+
+### 4.5.2 vercel.json (cron 등록)
+
+레포 루트에 `vercel.json`. Vercel 이 자동으로 cron 등록·실행:
+
+```json
+{
+  "crons": [
+    { "path": "/api/cron/outbox", "schedule": "0 * * * *" },
+    { "path": "/api/cron/escalation-sla", "schedule": "0 * * * *" }
+  ]
+}
+```
+
+- **Hobby plan 제약**: 일 2회. 위 hourly 는 Pro plan 가정. Hobby 면 schedule 을 `0 0 * * *` (일 1회 자정)로 변경
+- 로컬에서는 vercel.json 무시됨. dev 환경에선 수동 trigger:
+  ```powershell
+  curl -X POST http://localhost:3001/api/cron/outbox
+  curl -X POST http://localhost:3001/api/cron/escalation-sla
+  ```
+
+### 4.5.3 시드 한 번 실행 (Neon 에 직접)
+
+Vercel build 가 시드를 자동 실행하지 않음. 처음 배포 시 한 번:
+
+```powershell
+# 로컬에서 production DB 의 .env.local 을 임시로 쓰거나, Neon SQL Editor 에서 직접
+vercel env pull .env.local --environment=production
+pnpm db:seed
+```
+
+⚠️ **production DB 에 시드 wipe 가 일어남에 유의**. 시드 후 본인 가입·자가진단·예약 등의 실 데이터가 있으면 모두 날아감. 시연용 격리 DB 권장.
+
+### 4.5.4 배포 후 검증
+
+1. `https://<domain>/signin` 접속 → 5롤 계정 로그인 (시드 후 핵심 5롤 고정 UUID — `employee@`/`counselor@`/`doctor@`/`hr@`/`admin@`, password `testpass1234`)
+2. 직원: `/app/assessment` → `/app/counselors` → 예약
+3. HR: `/hr/dashboard` (k≥5 마스킹 통과) + `/hr/reports` (PDF 다운로드 200)
+4. ADMIN: `/admin/risk-queue` (시드 v2 RiskFlag 2건 노출) + `/admin/audit-logs`
+5. Cron 수동 1회 (Vercel UI → Crons 탭에서 "Run Now")
+
+### 4.5.5 시연 후 정리
+
+- `pnpm db:seed` 재실행으로 wipe + 깨끗한 시드 데이터로 리셋 (실 데이터 입력 후 시연하면 매번 깨끗한 상태로 복귀 필요)
+- 또는 Neon snapshot 으로 시연 직전 상태 복원
+
+---
+
 ## 5. Week 0 종료 시 검증 체크리스트
 
 - [ ] GitHub repo 접근 가능
