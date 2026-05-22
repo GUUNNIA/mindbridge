@@ -143,16 +143,37 @@
 - 시드의 `encryptField` 호출이 `{ ciphertext, encKeyVersion }` 객체 반환이라 String 컬럼 타입 에러. `enc()` 헬퍼로 ciphertext 만 추출 — `encKeyVersion` 컬럼은 모델 default(1) 가 처리
 - 빠른 `sed -i` 일괄 치환이 헬퍼 내부 `encryptField` 호출까지 `enc(...)` 로 바꿔 무한 재귀 함정 발생 → 즉시 fix. **교훈**: 동일 이름 헬퍼와 원래 함수가 한 파일에 같이 있을 때 sed 일괄 치환은 위험. 다음엔 Edit 으로 명시 치환
 
-## 5. 다음 시작점 — Day 26
+### Day 26 (일) — /admin/risk-queue (운영자 위기 큐)
 
-`/admin/risk-queue` — 운영자 위기 큐 (D19 acknowledgeRiskFlag UI 공백 닫기):
-- listRiskQueue server action — 5롤 abilities cross-check + companyId 격리 + L1~L4 필터 + status 필터
-- /admin/risk-queue page — 필터 + 표 + ack/dismiss 폼 (디스미스 사유 입력 필수)
-- D25 시드 v2 에서 만든 RiskFlag L2/L3 가 자동으로 화면에 들어옴
+- [x] `lib/actions/risk.ts` — `listRiskQueue` (회사 격리 + level/status/기간 필터, take/skip) + `dismissRiskFlag` (사유 5자 이상 + AuditLog `DISMISS_RISK_FLAG` 트랜잭션 기록)
+- [x] `app/(roles)/admin/risk-queue/page.tsx` — URL 쿼리 필터(level/status/from/to) + 표 + 페이지네이션
+  - 위험도 우선 정렬 (L4>L3>L2>L1) + 같은 위험도 내 최신순 (메모리 정렬)
+  - 익명성: `subjectAnonymizedId` + 부서명만 노출, 실명·이메일 X
+  - L3 는 디스미스 버튼 숨김 (전문의 사인오프가 종결권자)
+- [x] `_components/actions.tsx` — client component, useTransition + router.refresh
+  - ACK 1클릭, 디스미스는 인라인 textarea (5자 검증)
+- [x] `/admin/page.tsx` — 위기 알림 큐 카드 → `/admin/risk-queue` 링크
+- [x] `tests/abilities.test.ts` — RiskAlert 5롤 cross-check 3건 (ADMIN manage / COUNSELOR·PSYCHIATRIST read / EMPLOYEE·HR 거부)
+
+**검증**: typecheck clean · vitest 156/156 (이전 153 + 신규 3)
+
+**디자인 결정**:
+- **위험도 정렬은 메모리에서** — Prisma enum 정렬은 알파벳 순(L1<L2<L3<L4 이지만 L4 가 가장 위인데 알파벳상 마지막). 안전하게 fetch 후 in-memory `[..L4, L3, L2, L1]` 정렬
+- **L3 는 디스미스 불가** — L3 RiskFlag.status 는 자동 ESCALATED 되어 전문의 큐로. 운영자가 false positive 판단 시에도 전문의 사인오프가 종결권자라는 PRD §5.4 워크플로우 일관성
+- **익명성 우선** — 표에 실명·이메일·전화 0건. anonymizedId(앞 10자) + 부서명 + 키워드/요약만. PRD §H2 / §2.4 운영자도 익명성 가드 안에서 동작
+- **dismiss 사유 5자 이상** — 운영자가 빈 사유로 디스미스 못 함. PRD §A1 AC3 "디스미스는 사유 입력 필수" 강제
+
+## 5. 다음 시작점 — Day 27
+
+`e2e/demo-scenario.spec.ts` — 5롤 풀 시나리오:
+- 직원 자가진단 → 추천 → 예약 → 세션 입장 → 메시지 → 종료 → 피드백
+- 위기 메시지 자동 감지 → L3 escalation → 전문의 사인오프 → DECIDED
+- HR 대시보드 BR-7 통과 + 차트 표시 + PDF 다운로드 URL 확인
+- 운영자 risk-queue ACK + audit-logs 검증
+- W3 회귀 spec 과 통합 또는 별도 spec 으로 추가
 
 ### W4 잔여 일정
 
-- D26 (일): `/admin/risk-queue` (운영자 ack UI)
 - D27 (월): demo-scenario E2E
 - D28 (화): 회고 + Vercel 배포 + 최종 polish
 

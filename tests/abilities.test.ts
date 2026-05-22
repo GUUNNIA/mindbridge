@@ -183,4 +183,31 @@ describe("CASL abilities — 5롤별 권한 매트릭스 (PRD §2.2)", () => {
     const a = defineAbilityFor({ ...baseUser, role: "ADMIN" });
     expect(a.can("read", "AuditLog")).toBe(true);
   });
+
+  // D26 — RiskAlert subject 5롤 cross-check (운영자 큐 /admin/risk-queue)
+  it("ADMIN: RiskAlert manage 허용 (운영자 큐 + 디스미스)", () => {
+    const a = defineAbilityFor({ ...baseUser, role: "ADMIN" });
+    expect(a.can("read", "RiskAlert")).toBe(true);
+    expect(a.can("update", "RiskAlert")).toBe(true);
+    expect(a.can("manage", "RiskAlert")).toBe(true);
+  });
+
+  it("COUNSELOR/PSYCHIATRIST: RiskAlert read 허용 (담당·에스컬), update 거부", () => {
+    for (const role of ["COUNSELOR", "PSYCHIATRIST"] as const) {
+      const a = defineAbilityFor({ ...baseUser, role });
+      expect(a.can("read", "RiskAlert")).toBe(true);
+      // 자원 단위 update(ack/dismiss)는 server action 에서 role 검증 — ability 는 read 만 부여
+      expect(a.can("update", "RiskAlert")).toBe(false);
+      expect(a.can("manage", "RiskAlert")).toBe(false);
+    }
+  });
+
+  it("EMPLOYEE/HR: RiskAlert 모든 액션 거부", () => {
+    for (const role of ["EMPLOYEE", "HR"] as const) {
+      const a = defineAbilityFor({ ...baseUser, role });
+      expect(a.can("read", "RiskAlert")).toBe(false);
+      expect(a.can("update", "RiskAlert")).toBe(false);
+      expect(a.can("create", "RiskAlert")).toBe(false);
+    }
+  });
 });

@@ -203,3 +203,178 @@ export const acknowledgeRiskFlag = withAuth(
     return { ok: true };
   },
 );
+
+// ============================================================
+// Day 26 — 운영자 위기 큐 (/admin/risk-queue)
+// ============================================================
+
+export interface RiskQueueRow {
+  id: string;
+  level: RiskLevel;
+  status: string;
+  summary: string | null;
+  signals: { keywords?: string[]; snippet?: string } | null;
+  sourceType: RiskSourceType;
+  sourceId: string;
+  subjectUserId: string;
+  subjectAnonymizedId: string;
+  subjectDepartment: string | null;
+  createdAt: Date;
+  acknowledgedAt: Date | null;
+  acknowledgedByEmail: string | null;
+  hasEscalation: boolean;
+}
+
+/**
+ * 운영자 위기 큐 — 회사 단위 전체 RiskFlag 조회.
+ *
+ * - ADMIN 만 호출 가능 (manage:all 로 통과).
+ * - 회사 격리: ctx.user.companyId 와 RiskFlag.companyId 일치하는 row 만.
+ * - 익명성: 직원 이름 노출 안 함. anonymizedId + 부서명만.
+ * - 필터: level(L1~L4) / status(PENDING/ACKNOWLEDGED/ESCALATED/RESOLVED/DISMISSED) / 기간.
+ * - 정렬: 위험도 우선(L3>L2>L1) + 최신순.
+ */
+export interface ListRiskQueueInput {
+  level?: RiskLevel;
+  status?: "PENDING" | "ACKNOWLEDGED" | "ESCALATED" | "RESOLVED" | "DISMISSED";
+  fromISO?: string;
+  toISO?: string;
+  take?: number;
+  skip?: number;
+}
+
+export interface ListRiskQueueResult {
+  rows: RiskQueueRow[];
+  total: number;
+}
+
+export const listRiskQueue = withAuth(
+  { action: "read", subject: "RiskAlert" },
+  async (ctx, input: ListRiskQueueInput = {}): Promise<ListRiskQueueResult> => {
+    if (ctx.user.role !== "ADMIN") {
+      // 운영자 전용 큐 — 다른 롤은 본인 담당만(listRiskFlagsForSubject) 사용
+      return { rows: [], total: 0 };
+    }
+    if (!ctx.user.companyId) return { rows: [], total: 0 };
+
+    const take = Math.min(Math.max(input.take ?? 50, 1), 200);
+    const skip = Math.max(input.skip ?? 0, 0);
+
+    const where = {
+      companyId: ctx.user.companyId,
+      ...(input.level ? { level: input.level } : {}),
+      ...(input.status ? { status: input.status } : {}),
+      ...((input.fromISO || input.toISO)
+        ? {
+            createdAt: {
+              ...(input.fromISO ? { gte: new Date(input.fromISO) } : {}),
+              ...(input.toISO ? { lt: new Date(input.toISO) } : {}),
+            },
+          }
+        : {}),
+    };
+
+    const [rows, total] = await Promise.all([
+      prisma.riskFlag.findMany({
+        where,
+        // 위험도 desc(L3 우선) + 최신순. enum 정렬은 알파벳 따르므로 raw 정렬 효과는 약함 — DB 에서 status·createdAt 만 정렬하고 화면에서 보충.
+        orderBy: [{ createdAt: "desc" }],
+        take,
+        skip,
+        include: {
+          subject: {
+            select: {
+              anonymizedId: true,
+              department: { select: { name: true } },
+            },
+          },
+          acknowledgedBy: { select: { email: true } },
+          escalation: { select: { id: true } },
+        },
+      }),
+      prisma.riskFlag.count({ where }),
+    ]);
+
+    return {
+      rows: rows.map((r) => ({
+        id: r.id,
+        level: r.level,
+        status: r.status,
+        summary: r.summary,
+        signals: r.signals as { keywords?: string[]; snippet?: string } | null,
+        sourceType: r.sourceType,
+        sourceId: r.sourceId,
+        subjectUserId: r.subjectUserId,
+        subjectAnonymizedId: r.subject.anonymizedId,
+        subjectDepartment: r.subject.department?.name ?? null,
+        createdAt: r.createdAt,
+        acknowledgedAt: r.acknowledgedAt,
+        acknowledgedByEmail: r.acknowledgedBy?.email ?? null,
+        hasEscalation: !!r.escalation,
+      })),
+      total,
+    };
+  },
+);
+
+/**
+ * Day 26 — 운영자 dismiss (false positive 처리). 사유 입력 필수 (PRD §A1 AC3).
+ * AuditLog 기록.
+ */
+export const dismissRiskFlag = withAuth(
+  { action: "update", subject: "RiskAlert" },
+  async (
+    ctx,
+    input: { id: string; reason: string },
+  ): Promise<{ ok: true } | { ok: false; error: string }> => {
+    if (ctx.user.role !== "ADMIN") {
+      return { ok: false, error: "운영자 권한이 필요합니다." };
+    }
+    const reason = input.reason.trim();
+    if (reason.length < 5) {
+      return { ok: false, error: "디스미스 사유는 5자 이상 입력해 주세요." };
+    }
+    const flag = await prisma.riskFlag.findUnique({
+      where: { id: input.id },
+      select: { id: true, status: true, companyId: true },
+    });
+    if (!flag) return { ok: false, error: "위험 플래그를 찾을 수 없습니다." };
+    if (flag.companyId && flag.companyId !== ctx.user.companyId) {
+      await prisma.auditLog.create({
+        data: {
+          actorId: ctx.user.id,
+          action: "PERMISSION_DENIED",
+          resourceType: "RiskAlert",
+          resourceId: input.id,
+          metadata: { reason: "cross-company dismiss", at: "dismissRiskFlag" },
+        },
+      });
+      return { ok: false, error: "다른 회사 플래그는 처리할 수 없습니다." };
+    }
+    if (flag.status === "DISMISSED" || flag.status === "RESOLVED") {
+      return { ok: false, error: "이미 종결된 플래그입니다." };
+    }
+
+    await prisma.$transaction([
+      prisma.riskFlag.update({
+        where: { id: flag.id },
+        data: {
+          status: "DISMISSED",
+          dismissReason: reason,
+          acknowledgedAt: new Date(),
+          acknowledgedById: ctx.user.id,
+        },
+      }),
+      prisma.auditLog.create({
+        data: {
+          actorId: ctx.user.id,
+          action: "DISMISS_RISK_FLAG",
+          resourceType: "RiskAlert",
+          resourceId: flag.id,
+          metadata: { reason },
+        },
+      }),
+    ]);
+    return { ok: true };
+  },
+);

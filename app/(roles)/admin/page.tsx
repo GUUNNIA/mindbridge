@@ -27,14 +27,20 @@ export default async function AdminHome() {
       </header>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Card>
+        <Card className="flex flex-col">
           <CardHeader>
             <CardTitle>위기 알림 큐</CardTitle>
-            <CardDescription>L2/L3/L4 즉시 대응</CardDescription>
+            <CardDescription>L1~L4 위기 신호 · ACK / 디스미스</CardDescription>
           </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            Week 3 Day 19에 위기 감지·알림이 활성화됩니다.
+          <CardContent className="flex-1 text-sm text-muted-foreground">
+            assess_risk (D19) 가 감지한 RiskFlag 통합 큐. L3 는 전문의 큐로 자동 이관.
+            디스미스는 사유 입력 필수.
           </CardContent>
+          <CardFooter>
+            <Button asChild className="w-full">
+              <Link href="/admin/risk-queue">위기 큐 열기</Link>
+            </Button>
+          </CardFooter>
         </Card>
 
         <Card>
