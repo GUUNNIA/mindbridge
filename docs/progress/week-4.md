@@ -163,18 +163,31 @@
 - **익명성 우선** — 표에 실명·이메일·전화 0건. anonymizedId(앞 10자) + 부서명 + 키워드/요약만. PRD §H2 / §2.4 운영자도 익명성 가드 안에서 동작
 - **dismiss 사유 5자 이상** — 운영자가 빈 사유로 디스미스 못 함. PRD §A1 AC3 "디스미스는 사유 입력 필수" 강제
 
-## 5. 다음 시작점 — Day 27
+### Day 27 (월) — demo-scenario E2E (W4 신규 화면 회귀)
 
-`e2e/demo-scenario.spec.ts` — 5롤 풀 시나리오:
-- 직원 자가진단 → 추천 → 예약 → 세션 입장 → 메시지 → 종료 → 피드백
-- 위기 메시지 자동 감지 → L3 escalation → 전문의 사인오프 → DECIDED
-- HR 대시보드 BR-7 통과 + 차트 표시 + PDF 다운로드 URL 확인
-- 운영자 risk-queue ACK + audit-logs 검증
-- W3 회귀 spec 과 통합 또는 별도 spec 으로 추가
+- [x] `e2e/demo-scenario.spec.ts` — 2 test
+  - **HR 풀**: 로그인 → /hr → /hr/dashboard (BR-7 통과 + KPI/차트 노출) → /hr/reports (insight preview) → `/api/hr/report/pdf` GET 200 검증 (Content-Type, %PDF- magic, 길이) → AuditLog `GENERATE_HR_REPORT_PDF` 1건 누적 검증
+  - **ADMIN 풀**: setup 으로 L2 PENDING RiskFlag fixture 직접 insert → /admin/risk-queue → 표에 fixture 표시 확인 → "확인 (ACK)" 클릭 → DB status=ACKNOWLEDGED 검증 → /admin/audit-logs 페이지 표시 확인 → finally 블록에서 fixture cleanup
+- W3 회귀(`week-3-regression.spec.ts`)와 함께 5롤 풀 회귀를 구성:
+  - W3 spec = 직원·상담사·전문의 (위기 + 임상 + 피드백)
+  - W4 demo-scenario = HR · 운영자 (대시보드 + 리포트 + 감사 로그 + 위기 큐)
+
+**검증**: typecheck clean. playwright run 은 사용자 환경에서 dev 서버 띄운 채로 `pnpm e2e`.
+
+**디자인 결정**:
+- **시드 의존 최소화** — ADMIN spec 은 L2 fixture 를 spec 내부에서 insert + cleanup. 시드 v2 의 RiskFlag 가 wipe 됐어도 동작
+- **PDF 다운로드는 request.get** — page click 으로 다운로드 트리거하면 브라우저가 별도 다운로드 매니저 띄움. playwright `request` API 로 같은 URL 호출 + 같은 쿠키 보내서 200 + PDF magic + AuditLog 누적 검증
+- **HR spec 끝에 signOut, ADMIN spec 은 새 context 라 signOut 불필요** — 각 test 독립
+
+## 5. 다음 시작점 — Day 28
+
+W4 마무리:
+- 한 달 회고 메모 (`docs/retrospective.md`)
+- Vercel 배포 — GitHub repo 연결 + 환경변수 등록 + 시드 1회 실행 + vercel.json cron 설정
+- 최종 polish — typecheck/vitest/E2E 그린 확인 + week-4.md 마무리
 
 ### W4 잔여 일정
 
-- D27 (월): demo-scenario E2E
 - D28 (화): 회고 + Vercel 배포 + 최종 polish
 
 ## 6. 참고 링크
