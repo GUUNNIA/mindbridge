@@ -167,4 +167,20 @@ describe("CASL abilities — 5롤별 권한 매트릭스 (PRD §2.2)", () => {
       expect(a.can("update", "Feedback")).toBe(false);
     }
   });
+
+  // D25 — AuditLog 5롤 cross-check (PRD §2.2 권한 매트릭스 마지막 행)
+  it("EMPLOYEE/COUNSELOR/PSYCHIATRIST/HR: AuditLog 모든 액션 거부", () => {
+    for (const role of ["EMPLOYEE", "COUNSELOR", "PSYCHIATRIST", "HR"] as const) {
+      const a = defineAbilityFor({ ...baseUser, role });
+      expect(a.can("read", "AuditLog")).toBe(false);
+      expect(a.can("create", "AuditLog")).toBe(false);
+      expect(a.can("update", "AuditLog")).toBe(false);
+      expect(a.can("delete", "AuditLog")).toBe(false);
+    }
+  });
+
+  it("ADMIN: AuditLog read 허용 (D25 audit-logs 화면)", () => {
+    const a = defineAbilityFor({ ...baseUser, role: "ADMIN" });
+    expect(a.can("read", "AuditLog")).toBe(true);
+  });
 });

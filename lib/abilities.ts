@@ -55,7 +55,9 @@ export function defineAbilityFor(user: AbilityUser): AppAbility {
     case "ADMIN": {
       // 운영자: 거의 모든 자원 R/W + 감사 로그 R
       can("manage", "all");
-      // 단, 본인 정산만 (자원 조건은 W3 에 보강)
+      // 본인 정산만 (자원 조건은 W3 에 보강)
+      // AuditLog 는 manage:all 로 통과하지만 D25 에서 명시적으로 read 표기 (가독성)
+      can("read", "AuditLog");
       break;
     }
 

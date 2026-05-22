@@ -111,19 +111,50 @@
 - **익명성 회귀 테스트** — insight 출력에 `@`·전화 패턴·"직원-XXX" 닉네임 패턴이 절대 들어가지 않는지 단위 테스트로 강제. real API 도 tool input_schema + 프롬프트 제약으로 같이 막음
 - **PDF 한글 폰트** — Pretendard CDN 등록 (`@react-pdf/renderer`의 Font.register). 등록 실패 시 system fallback (한글 깨짐 가능 — V2 에서 fonts/ 디렉토리 배치 검토)
 
-## 5. 다음 시작점 — Day 25
+### Day 25 (토) — 시드 v2 + /admin/audit-logs
 
-시드 v2 + `/admin/audit-logs`:
-- `prisma/seed-v2.ts` — 1개월치 운영 시뮬레이션 (자가진단·예약·세션·피드백·RiskFlag 분산). D23 약식 시드를 확장 — 이번 달 자가진단 늘리고, 실 세션·피드백 데이터 추가
-- `/admin/audit-logs/page.tsx` — actor·resourceType·action·기간 필터 + 최신순 + CSV 내보내기 (V2)
-- D24 가 `GENERATE_HR_REPORT_PDF` 액션을 새로 기록하므로 시연 데이터에 자연스럽게 포함됨
+- [x] `prisma/seed.ts` — **핵심 5롤 계정 고정 UUID** (D24 발견 stale JWT fix)
+  - `FIXED_USER_IDS` 상수 (employee/counselor/psychiatrist/hr/admin)
+  - `UserSpec.id?: string` 옵셔널, `createUser` 가 spec.id ?? randomUUID
+  - 시드 재실행 후에도 5롤 JWT 세션 유지 — 외래키 위반 회귀 차단
+- [x] `seedSessionsFeedbackRisks` 신규 — 풀 사이클 시드
+  - Booking COMPLETED 5건 (직원 5명 × 상담사 2명, 1~5주 전 분산)
+  - Session COMPLETED 5건 + SessionMessage 4개/세션 (입장/직원/상담사/종료, 모두 enc)
+  - ClinicalNote FINALIZED 5건 (SOAP 4필드 + summary 모두 enc)
+  - Feedback 4건 (rating 5·4·5·3) + Counselor rating·ratingCount 재계산
+  - RiskFlag L2 1건 + L3 1건 → L3 는 Escalation PENDING 동시 생성
+  - `enc()` 헬퍼 — `encryptField` 결과의 ciphertext 만 꺼내 String 컬럼에 저장
+- [x] `lib/abilities.ts` — ADMIN `can("read", "AuditLog")` 명시 (이전 manage:all 로 통과)
+- [x] `tests/abilities.test.ts` — 2건 (ADMIN read 허용 + 4롤 거부) cross-check
+- [x] `lib/actions/audit.ts`
+  - `searchAuditLogs` (actorId · resourceType · action · 기간 필터, take/skip, total count)
+  - `listAuditLogFacets` (distinct action/resourceType — 필터 select 옵션)
+- [x] `/admin/audit-logs/page.tsx` — URL 쿼리 기반 필터 폼 + 표 + 페이지네이션
+- [x] `/admin/page.tsx` — 감사 로그 카드 → `/admin/audit-logs` 링크
+
+**검증**: typecheck clean · vitest 153/153 (이전 151 + 신규 2 AuditLog cross-check)
+
+**디자인 결정**:
+- **고정 UUID 는 5롤만, 시드 v1 계정 (counselor02~10, emp002~050, doctor02~03, hr02) 은 randomUUID 유지** — 시드 재실행 시 그들은 어차피 JWT 세션이 없으므로 영향 없음. 5롤 고정만으로 stale JWT 문제 해결
+- **시드 자가진단 풍부화는 D23 시드 그대로 재활용** — D23 분배(54건, 5개월 분산) 가 차트 시연에 충분. D25 는 세션·피드백·위험 신호 풀 사이클 추가에 집중
+- **CSV 내보내기는 V2** — IA `/admin/audit-logs` 명세 중 CSV 는 PRD §6.1.5 명시되어 있지만, 시연 워크플로우엔 화면 표만 있어도 충분. 향후 audit 외부 보고 케이스에서
+
+**verify 중 발견·해결**:
+- 시드의 `encryptField` 호출이 `{ ciphertext, encKeyVersion }` 객체 반환이라 String 컬럼 타입 에러. `enc()` 헬퍼로 ciphertext 만 추출 — `encKeyVersion` 컬럼은 모델 default(1) 가 처리
+- 빠른 `sed -i` 일괄 치환이 헬퍼 내부 `encryptField` 호출까지 `enc(...)` 로 바꿔 무한 재귀 함정 발생 → 즉시 fix. **교훈**: 동일 이름 헬퍼와 원래 함수가 한 파일에 같이 있을 때 sed 일괄 치환은 위험. 다음엔 Edit 으로 명시 치환
+
+## 5. 다음 시작점 — Day 26
+
+`/admin/risk-queue` — 운영자 위기 큐 (D19 acknowledgeRiskFlag UI 공백 닫기):
+- listRiskQueue server action — 5롤 abilities cross-check + companyId 격리 + L1~L4 필터 + status 필터
+- /admin/risk-queue page — 필터 + 표 + ack/dismiss 폼 (디스미스 사유 입력 필수)
+- D25 시드 v2 에서 만든 RiskFlag L2/L3 가 자동으로 화면에 들어옴
 
 ### W4 잔여 일정
 
-- D25 (토): 시드 v2 + `/admin/audit-logs`
 - D26 (일): `/admin/risk-queue` (운영자 ack UI)
 - D27 (월): demo-scenario E2E
-- D28 (화): 회고 + 최종 polish
+- D28 (화): 회고 + Vercel 배포 + 최종 polish
 
 ## 6. 참고 링크
 

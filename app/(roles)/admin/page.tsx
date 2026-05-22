@@ -1,10 +1,13 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -54,14 +57,20 @@ export default async function AdminHome() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="flex flex-col">
           <CardHeader>
             <CardTitle>감사 로그</CardTitle>
-            <CardDescription>권한 위반·민감 접근</CardDescription>
+            <CardDescription>권한 위반·민감 접근·리포트 발행 추적</CardDescription>
           </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            withAuth 데코레이터가 이미 PERMISSION_DENIED 를 자동 기록 중입니다.
+          <CardContent className="flex-1 text-sm text-muted-foreground">
+            actor·resourceType·action·기간 필터로 검색. withAuth 데코레이터의
+            PERMISSION_DENIED + 각 server action 의 명시적 AuditLog 기록.
           </CardContent>
+          <CardFooter>
+            <Button asChild className="w-full">
+              <Link href="/admin/audit-logs">감사 로그 열기</Link>
+            </Button>
+          </CardFooter>
         </Card>
       </div>
     </div>
