@@ -29,7 +29,7 @@ export default async function LandingPage() {
 
   return (
     <main className="min-h-screen bg-muted/40">
-      <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-6 py-12">
+      <div className="mx-auto max-w-4xl px-6 pb-12 pt-16 sm:pt-20">
         <Hero />
         <ValueCards />
         <Footer />
@@ -40,25 +40,25 @@ export default async function LandingPage() {
 
 function Hero() {
   return (
-    <section className="mb-12 mt-8 max-w-3xl">
-      <p className="mb-3 inline-block rounded-full bg-brand-50 px-3 py-1 text-xs font-medium text-brand-700">
+    <section className="mb-14 text-center">
+      <p className="mb-4 inline-block rounded-full bg-brand-50 px-3 py-1 text-xs font-medium text-brand-700">
         B2B 정신건강 EAP 플랫폼
       </p>
-      <h1 className="text-4xl font-semibold leading-tight tracking-tight text-foreground sm:text-5xl">
+      <h1 className="text-4xl font-semibold leading-tight tracking-tight text-foreground sm:text-[2.75rem]">
         MindBridge
       </h1>
-      <p className="mt-3 text-lg text-foreground">
+      <p className="mx-auto mt-4 max-w-2xl text-base text-foreground sm:text-lg">
         직원·상담사·전문의·HR·운영자가 한 흐름에서 자연스럽게 협진하는 멀티롤 정신건강 케어 플랫폼.
       </p>
-      <p className="mt-2 text-sm text-muted-foreground">
+      <p className="mx-auto mt-2 max-w-2xl text-sm text-muted-foreground">
         Claude AI 기반 자가진단·임상 노트 자동화·위기 신호 감지와 k-익명성 HR 인사이트를 한 곳에서.
       </p>
 
-      <div className="mt-8 flex flex-wrap gap-3">
-        <Button asChild size="lg">
+      <div className="mt-7 flex flex-wrap justify-center gap-3">
+        <Button asChild className="px-6">
           <Link href="/signin">로그인</Link>
         </Button>
-        <Button asChild size="lg" variant="outline">
+        <Button asChild variant="outline" className="px-6">
           <Link href="/signup">초대 코드로 가입</Link>
         </Button>
       </div>
@@ -93,12 +93,12 @@ function ValueCards() {
   ];
 
   return (
-    <section className="mb-12 grid gap-4 md:grid-cols-3">
+    <section className="grid gap-4 md:grid-cols-3">
       {items.map((it) => (
-        <Card key={it.title}>
-          <CardHeader>
+        <Card key={it.title} className="h-full">
+          <CardHeader className="space-y-1.5 pb-3">
             <CardTitle className="text-base">{it.title}</CardTitle>
-            <CardDescription>{it.description}</CardDescription>
+            <CardDescription className="text-xs">{it.description}</CardDescription>
           </CardHeader>
           <CardContent className="text-sm leading-relaxed text-muted-foreground">
             {it.body}
@@ -111,7 +111,7 @@ function ValueCards() {
 
 function Footer() {
   return (
-    <footer className="mt-auto border-t border-border pt-6 text-xs text-muted-foreground">
+    <footer className="mt-10 border-t border-border pt-5 text-center text-xs text-muted-foreground">
       <p>
         이 환경은 기획→개발 프로세스 검증용 데모입니다. 실제 의료·상담 서비스가 아니며 모든 데이터는 가상입니다.
       </p>

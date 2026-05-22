@@ -193,21 +193,27 @@ export function ChatRoom({
             e.preventDefault();
             send();
           }}
-          className="flex gap-2 border-t border-border p-3"
+          className="border-t border-border p-3"
         >
-          <input
-            type="text"
-            placeholder={isEnded ? "세션 종료됨" : "메시지를 입력하세요"}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            disabled={pending || isEnded}
-            className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50"
-            autoComplete="off"
-            maxLength={2000}
-          />
-          <Button type="submit" disabled={pending || isEnded || !input.trim()}>
-            보내기
-          </Button>
+          <div className="flex items-center gap-1 rounded-full border border-input bg-background pl-4 pr-1.5 py-1.5 transition focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
+            <input
+              type="text"
+              placeholder={isEnded ? "세션 종료됨" : "메시지를 입력하세요"}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              disabled={pending || isEnded}
+              className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground disabled:opacity-50"
+              autoComplete="off"
+              maxLength={2000}
+            />
+            <Button
+              type="submit"
+              size="sm"
+              disabled={pending || isEnded || !input.trim()}
+            >
+              보내기
+            </Button>
+          </div>
         </form>
       </div>
     </div>

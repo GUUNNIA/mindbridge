@@ -98,7 +98,7 @@ function SignInForm() {
               </p>
             )}
           </CardContent>
-          <CardFooter>
+          <CardFooter className="pt-6">
             <Button type="submit" disabled={pending} className="w-full">
               {pending ? "로그인 중…" : "로그인"}
             </Button>
