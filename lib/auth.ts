@@ -1,6 +1,6 @@
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import bcrypt from "bcryptjs";
+import { compare } from "@node-rs/bcrypt";
 import { z } from "zod";
 
 import { prisma } from "@/lib/db";
@@ -48,7 +48,7 @@ export const authOptions: NextAuthOptions = {
         if (!user || !user.passwordHash) return null;
         if (user.status !== "ACTIVE") return null;
 
-        const ok = await bcrypt.compare(password, user.passwordHash);
+        const ok = await compare(password, user.passwordHash);
         if (!ok) return null;
 
         return {

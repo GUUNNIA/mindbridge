@@ -1,7 +1,7 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import bcrypt from "bcryptjs";
+import { hash } from "@node-rs/bcrypt";
 import { z } from "zod";
 
 import { prisma } from "@/lib/db";
@@ -90,7 +90,7 @@ export async function signUpWithInvite(input: SignUpInput): Promise<SignUpResult
     return { ok: false, error: "이미 가입된 이메일입니다.", field: "email" };
   }
 
-  const passwordHash = await bcrypt.hash(password, 12);
+  const passwordHash = await hash(password, 12);
   const userId = randomUUID();
   const anonymizedId = anonymizeIdFromEnv(userId);
 

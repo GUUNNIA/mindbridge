@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   experimental: {
     typedRoutes: true,
   },
-  serverExternalPackages: ["@prisma/client", "bcryptjs"],
+  serverExternalPackages: ["@prisma/client", "@node-rs/bcrypt"],
   async headers() {
     return [
       {

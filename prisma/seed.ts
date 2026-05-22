@@ -18,7 +18,7 @@ loadEnv({ path: ".env.local" });
 loadEnv({ path: ".env" });
 
 import { randomUUID } from "node:crypto";
-import bcrypt from "bcryptjs";
+import { hash } from "@node-rs/bcrypt";
 import { PrismaClient, type UserRole } from "@prisma/client";
 
 import { anonymizeId } from "../lib/anon";
@@ -765,7 +765,7 @@ async function main() {
   console.log("[seed] company + departments…");
   const { companyId, departmentIds } = await seedCompanyAndDepartments();
 
-  const passwordHash = await bcrypt.hash(SEED_PASSWORD, 12);
+  const passwordHash = await hash(SEED_PASSWORD, 12);
   const ctx = { companyId, departmentIds, passwordHash };
 
   console.log("[seed] admin…");
