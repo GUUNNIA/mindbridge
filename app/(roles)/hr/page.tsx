@@ -42,14 +42,19 @@ export default async function HRHome() {
           </CardFooter>
         </Card>
 
-        <Card>
+        <Card className="flex flex-col">
           <CardHeader>
-            <CardTitle>이용률</CardTitle>
-            <CardDescription>월간 활성 사용자</CardDescription>
+            <CardTitle>대시보드</CardTitle>
+            <CardDescription>이번 달 익명 집계 · k≥5 마스킹</CardDescription>
           </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            Week 4 Day 22~23에 차트가 들어옵니다.
+          <CardContent className="flex-1 text-sm text-muted-foreground">
+            이용률·카테고리·번아웃·부서별 지표. Day 22 텍스트 카드 → Day 23 차트화.
           </CardContent>
+          <CardFooter>
+            <Button asChild className="w-full">
+              <Link href="/hr/dashboard">대시보드 열기</Link>
+            </Button>
+          </CardFooter>
         </Card>
 
         <Card>
@@ -58,7 +63,7 @@ export default async function HRHome() {
             <CardDescription>상담 주제 익명 집계</CardDescription>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            Claude classify_category 결과가 익명 집계됩니다.
+            Claude classify_category 결과가 익명 집계됩니다. 대시보드에서 확인.
           </CardContent>
         </Card>
 

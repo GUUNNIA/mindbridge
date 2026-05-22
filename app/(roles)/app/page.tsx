@@ -99,18 +99,19 @@ export default async function EmployeeHome() {
               ? `상태: ${upcomingBooking.status === "CONFIRMED" ? "확정" : "수락 대기"}`
               : "자가진단 완료 후 상담사를 추천받아 예약하세요."}
           </CardContent>
-          <CardFooter>
+          <CardFooter className="gap-2">
             {upcomingBooking ? (
-              <Button asChild variant="outline" className="w-full">
+              <Button asChild variant="outline" className="flex-1">
                 <Link href={`/app/bookings/${upcomingBooking.id}`}>상세 보기</Link>
               </Button>
             ) : (
-              <Button asChild variant="outline" className="w-full" disabled={!latestAssessment}>
-                <Link href={latestAssessment ? `/app/counselors?assessmentId=${latestAssessment.id}` : "#"}>
-                  상담사 추천 보기
-                </Link>
+              <Button asChild variant="outline" className="flex-1">
+                <Link href="/app/counselors">상담사 추천 보기</Link>
               </Button>
             )}
+            <Button asChild variant="ghost" className="flex-1">
+              <Link href="/app/bookings">전체 예약</Link>
+            </Button>
           </CardFooter>
         </Card>
       </div>

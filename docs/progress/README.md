@@ -2,7 +2,7 @@
 
 > 매주 끝에 그 주에 한 일·결정·이슈·다음 단계를 기록. **새 머신/새 Claude 세션에서 이어서 작업할 때 가장 먼저 읽을 파일**.
 
-## 현재 상태 (2026-05-21)
+## 현재 상태 (2026-05-22)
 
 | 단계 | 상태 |
 |---|---|
@@ -10,7 +10,16 @@
 | Week 1 — Foundation (인증·5롤 화면·시드) | ✅ 완료 (Day 6·7 예비 미수행) |
 | Week 2 — 직원 여정 | ✅ 완료 |
 | Week 3 — 상담·위기·피드백 | ✅ 완료 (W3 게이트 통과: 위기 감지 ~1.5s) |
-| Week 4 — HR 대시보드·정리 | ⏳ 시작 대기 |
+| Week 4 — HR + 운영자 큐 + 회고 | 🟡 시작 (D22 — HR k-anon + bookings 목록) |
+
+### W4 일정 재배치 (2026-05-22 결정)
+
+PRD·IA 대비 갭 분석 결과로 dev plan §5 W4가 재배치됨. 핵심 변경:
+
+- **D27 데모 스크립트·D28 리허설 영상 → 회고로 전환**: 본 프로젝트는 외부 청중 없는 학습 목적(`project_mindbridge.md` 명시). 데모 산출물은 본 목적과 어긋남
+- **D26에 `/admin/risk-queue` 추가**: D19에 만든 `acknowledgeRiskFlag` server action의 UI 공백 닫기. L2 운영자 ack 경로(PRD §5.4·§8)가 코드만 있고 화면 없는 상태 해소
+- **`/app/bookings` 목록 D22에 끼움**: IA 2.2 명시인데 누락. 30분 작업
+- **V2로 미룬 IA 페이지**: `/admin/escalations`, `/admin/counselors`, `/admin/companies`, `/admin/payments`, `/admin/notifications`, `/app/notifications`, `/app/settings/*` 5개, `/counselor/calendar`, `/counselor/availability`, `/forgot-password`·`/reset-password`·`/terms`·`/privacy`·`/faq` 등 비-임계 페이지. **이유**: 본 프로젝트 목적이 사업 검토가 아니라 프로세스 검증이라 임계 경로(직원 여정 + HR 익명성 + 위기 워크플로우)만 V1에서 닫고 나머지는 PRD §11.B V2 Backlog로 이관
 
 ## 주차별 요약 (작성 완료된 것)
 
@@ -18,6 +27,7 @@
 - [Week 1 — Foundation](week-1.md)
 - [Week 2 — 직원 여정](week-2.md)
 - [Week 3 — 상담·위기·피드백](week-3.md)
+- [Week 4 — HR + 운영자 큐 + 회고](week-4.md) (진행 중)
 
 ## 새 환경에서 재개하는 법
 

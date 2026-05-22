@@ -107,21 +107,23 @@
 
 ---
 
-## 5. Week 4 — HR 대시보드 + 시연 polish
+## 5. Week 4 — HR 대시보드 + 운영자 큐 마무리 + 회고
 
-목표: HR 리포트 완성 + 시연 안정성 확보
+목표: HR 리포트 완성 + V1 워크플로우 UI 공백(운영자 ack 경로) 닫기 + 한 달 프로세스 회고
+
+> **2026-05-22 재배치 결정**: 원안의 D27(데모 스크립트)·D28(리허설 영상)은 본 프로젝트의 외부 청중 없는 학습 목적과 어긋남. 대신 운영자 위기 큐 화면(`/admin/risk-queue`)을 추가해 D19에 만든 `acknowledgeRiskFlag` server action의 UI 공백을 닫고, D28은 한 달 회고·다음 학습 사이클 가이드로 전환. `/app/bookings` 목록(IA 2.2 명시)은 D22에 HR 작업 사이 30분 작업으로 끼움. `/admin/escalations`는 V2로 미룸 — 운영자가 SLA를 모니터링하는 PRD 명시는 있지만, 전문의 `/psychiatrist/queue`가 이미 SLA 표시 + 운영자 워크플로우 갭은 risk-queue 하나로 닫힘.
 
 | Day | 작업 | 산출물 | DoD |
 |---|---|---|---|
-| 22 | HRReport + Notification + Department 엔티티, 익명 집계 쿼리, **k≥5 응답 미들웨어** | `lib/hr/aggregate.ts`, k-anon 가드 | HR 화면 개인 식별 0건 |
-| 23 | HR 대시보드 차트 (이용률·카테고리·번아웃 지표) | recharts 또는 tremor | 추이 차트 3개 |
-| 24 | Claude `generate_hr_insight` tool + PDF 생성 (react-pdf 또는 puppeteer) | `lib/ai/insight.ts`, PDF 다운로드 | 1페이지 인사이트 + PDF |
-| 25 | 감사 로그 화면 (`/admin/audit-logs`) + **시드 v2** (1개월치 가상 운영 데이터) | `prisma/seed-v2.ts` | 감사 로그 검색, HR 차트 그럴듯 |
-| 26 | 시연 시나리오 E2E 자동화 (Playwright) — §7.1의 5단계 | `e2e/demo-scenario.spec.ts` | 시연 자동화 그린 |
-| 27 | 데모 워크스루 스크립트(5분/15분), 데모 환경 격리 점검 | `docs/demo-script.md` | 스크립트 완성 |
-| 28 | 리허설 1회 + DB 스냅샷 + 시드 재현 스크립트 격리 보관 + 최종 polish | 리허설 영상 녹화 | 30분 데모 리허설 무중단 |
+| 22 | HRReport 데이터 + Department 활용 + 익명 집계 쿼리 + **k≥5 가드** + BR-7 발행 조건 + `getDashboard` server action + `/app/bookings` 목록 | `lib/hr/aggregate.ts`, k-anon·BR-7 가드, `/app/bookings` page | HR 집계 함수 단위 + 5롤 cross-check 통과, `/app/bookings` 본인 예약만 표시 |
+| 23 | `/hr/dashboard` 차트 (이용률·카테고리·번아웃 지표) | recharts 또는 tremor | 추이 차트 3개, k<5 셀은 "<5명" 마스킹 |
+| 24 | Claude `generate_hr_insight` tool + `/hr/reports` 리스트·상세 + PDF 생성 (react-pdf) | `lib/ai/insight.ts`, PDF 다운로드 | 1페이지 인사이트 + PDF |
+| 25 | 시드 v2 (1개월치 가상 운영 데이터, HR 차트 그럴듯하게) + `/admin/audit-logs` | `prisma/seed-v2.ts`, audit-logs page | 감사 로그 검색, HR 차트 데이터 있음 |
+| 26 | **`/admin/risk-queue`** (운영자 위기 큐 + L1~L4 필터 + 디스미스 사유 입력 + 5롤 cross-check) | `listRiskQueue` action + page | 운영자가 L2를 ack/디스미스 가능, abilities 5롤 통합 회귀 |
+| 27 | demo-scenario E2E (5롤 풀 시나리오 — `e2e/demo-scenario.spec.ts`) | Playwright spec | 풀 시나리오 그린, W3 회귀와 합쳐 통합 회귀 |
+| 28 | 한 달 회고 (`docs/retrospective.md`) + 다음 학습 사이클 가이드 + 최종 polish | retrospective 문서 | 회고 작성 완료, typecheck/vitest/E2E 그린 |
 
-**Week 4 게이트**: 30분 데모 시뮬레이션 무중단 + HR 익명성 검증 통과
+**Week 4 게이트**: HR 익명성 검증 통과 (k<5 마스킹 0건 위반) + 운영자 위기 ack UI 동작 + 5롤 풀 시나리오 E2E 그린
 
 ---
 

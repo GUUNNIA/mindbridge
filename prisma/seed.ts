@@ -135,6 +135,12 @@ const ADMINS: UserSpec[] = [
 async function wipe() {
   // Cascade 가 처리하지 않는 관계 순서대로 (외래키 충돌 회피)
   // W3 → W2 → W1 역순.
+  //
+  // 주의: D22 발견 — W3 신설 모델(RiskFlag·Escalation·Feedback) 의 User 외래키는
+  // onDelete 미지정 (RESTRICT). 반드시 User 삭제 이전에 wipe 해야 함.
+  await prisma.feedback.deleteMany();
+  await prisma.escalation.deleteMany();
+  await prisma.riskFlag.deleteMany();
   await prisma.notificationOutbox.deleteMany();
   await prisma.clinicalNote.deleteMany();
   await prisma.sessionMessage.deleteMany();
@@ -278,6 +284,23 @@ async function seedConsents(userIds: string[]) {
   await prisma.consent.createMany({ data });
 }
 
+/**
+ * STATISTICS (선택 동의) 보강 — Day 22.
+ * 모집단 정의: 회사 소속 EMPLOYEE 만. 약 60% 가 동의 (BR-7 동의자 ≥10 충족 +
+ * 미동의자 잔존으로 BR-12 모집단 제외 가드 검증).
+ * 고정 시드: 직원 user.id 정렬 후 인덱스 % 5 ≠ 0 인 직원에게 부여 (재시드 안정성).
+ */
+async function seedStatisticsConsents(employeeUserIds: string[]) {
+  const version = "2026-05-19-v1";
+  const sorted = [...employeeUserIds].sort();
+  const data = sorted
+    .filter((_, idx) => idx % 5 !== 0) // 50명 중 40명 동의 (인덱스 0·5·10·... 10명 미동의)
+    .map((userId) => ({ userId, type: "STATISTICS" as const, version }));
+  if (data.length > 0) {
+    await prisma.consent.createMany({ data });
+  }
+}
+
 async function seedSubscription(companyId: string) {
   const now = new Date();
   await prisma.subscription.create({
@@ -371,6 +394,13 @@ async function main() {
   const allUsers = await prisma.user.findMany({ select: { id: true } });
   console.log(`[seed] consents (${allUsers.length} users × 2)…`);
   await seedConsents(allUsers.map((u) => u.id));
+
+  const allEmployees = await prisma.user.findMany({
+    where: { role: "EMPLOYEE" },
+    select: { id: true },
+  });
+  console.log(`[seed] STATISTICS consents (40/${allEmployees.length} employees)…`);
+  await seedStatisticsConsents(allEmployees.map((u) => u.id));
 
   console.log("[seed] subscription…");
   await seedSubscription(companyId);
