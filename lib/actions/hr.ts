@@ -10,6 +10,7 @@ import {
   type MonthlySeriesPoint,
   type PublishGate,
 } from "@/lib/hr/aggregate";
+import { generateHRInsight, type HRInsightResult } from "@/lib/ai/insight";
 
 /**
  * HR server actions (PRD §6.1.4) — Day 22.
@@ -94,5 +95,43 @@ export const getMonthlySeries = withAuth(
       monthsBack,
     });
     return { ok: true, points };
+  },
+);
+
+/**
+ * Day 24 — 리포트 미리보기 (인사이트 텍스트만, PDF 는 별도 route handler).
+ * BR-7 미달 시 발행 차단.
+ */
+export type GenerateInsightPreviewResult =
+  | { ok: true; data: DashboardData; insight: HRInsightResult; gate: PublishGate }
+  | { ok: false; error: string; gate?: PublishGate };
+
+export const generateInsightPreview = withAuth(
+  { action: "read", subject: "HRReport" },
+  async (
+    ctx,
+    input: DashboardPeriodInput,
+  ): Promise<GenerateInsightPreviewResult> => {
+    if (!ctx.user.companyId) {
+      return { ok: false, error: "회사 정보가 없는 HR 계정입니다." };
+    }
+    const period = parsePeriod(input);
+    if (!period) {
+      return { ok: false, error: "기간 입력이 올바르지 않습니다." };
+    }
+    const gate = await checkPublishable(prisma, ctx.user.companyId);
+    if (!gate.ok) {
+      return {
+        ok: false,
+        error: `발행 조건 미달 (BR-7): 회사 직원 ${gate.headcount}명, 통계 동의자 ${gate.consenters}명. 직원 20명 이상 또는 동의자 10명 이상 필요.`,
+        gate,
+      };
+    }
+    const data = await computeDashboard(prisma, {
+      companyId: ctx.user.companyId,
+      period,
+    });
+    const insight = await generateHRInsight(data);
+    return { ok: true, data, insight, gate };
   },
 );

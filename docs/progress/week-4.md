@@ -88,17 +88,38 @@
 **verify 중 발견·해결**:
 - 시드 분배 modulo 충돌 버그 — `monthsAgo` 와 `categorySlug` 가 같은 `i % 5` 인덱스를 써서 monthsAgo=0 인 모든 record 가 자동으로 CATEGORIES[0]=depression 으로 몰림. 결과: "이번 달 우울만 12회" 같은 단조로운 분포가 나타남. fix: `monthsAgo = floor(i / 6)` 으로 독립화. ASSESSMENT_DISTRIBUTION 배열 + assignmentIdx 패턴도 제거하고 사용자별 직접 처리로 단순화
 
-## 5. 다음 시작점 — Day 24
+### Day 24 (금) — generate_hr_insight + /hr/reports + PDF
 
-`generate_hr_insight` Claude tool + `/hr/reports` 리스트·상세 + PDF 다운로드:
-- `lib/ai/insight.ts` — mock 우선 (D9 / D17 / D19 패턴), 입력은 `DashboardData` + 전월 비교, 출력은 1단락 인사이트 + Key Takeaways 3 + Recommended Actions 3
-- `/hr/reports` 페이지 — 발행 이력 (on-demand 집계지만 발행 시점 기록 — Outbox 또는 단순 row?) → D24 시작 시 결정
-- `/hr/reports/:id` — 1페이지 인사이트 + 차트 3개 + Action Item
-- PDF: react-pdf (Vercel 호환) — 또는 puppeteer 비교 후 결정
+- [x] `@react-pdf/renderer` 추가
+- [x] `lib/ai/insight.ts` — `generateHRInsightMock` + `generateHRInsightClaude` (D9/D17/D19 동일 패턴, `isAIEnabled` 분기)
+  - `summarizeForInsight(data)` — 마스킹 셀 제외 + 참여율·번아웃·중증 비율 추출 (LLM 입력용 정리)
+  - `sanitizeInputForLLM(data)` — 실 Claude 호출 시 마스킹 셀 제거 + 개인 식별 가능 필드 없는 JSON 만 전달
+- [x] `lib/pdf/hr-report.tsx` — `@react-pdf/renderer` JSX 레이아웃 (KPI 4종 + 인사이트 + Key Takeaways + Actions + 카테고리/부서/심각도 표 + 익명성 footer)
+  - Pretendard CDN 등록 + 한국어 hyphenation 비활성
+- [x] `app/api/hr/report/pdf/route.ts` — GET route handler, `renderToBuffer` 동적 import, AuditLog `GENERATE_HR_REPORT_PDF` 기록
+- [x] `lib/actions/hr.ts` — `generateInsightPreview` server action (HRReport read, BR-7 미달 시 차단)
+- [x] `/hr/reports/page.tsx` — 미리보기 (insight 텍스트) + PDF 다운로드 링크. 발행 이력 저장 없음 (on-demand)
+- [x] `/hr/page.tsx` — 월간 리포트 카드에 `/hr/reports` 링크 + footer 버튼
+- [x] `tests/ai-insight.test.ts` — 9건 (summarizeForInsight 5건 + generateHRInsightMock 4건). 익명성 회귀 가드(이메일·전화·닉네임 패턴 부재 검증) 포함
+
+**검증**: typecheck clean · vitest 151/151 (이전 142 + 신규 9)
+
+**디자인 결정**:
+- **HRReport 모델은 만들지 않음 — 재확인** — D22 결정 유지. `/hr/reports` 페이지는 발행 이력 X, 매번 on-demand 생성 + PDF 즉시 다운로드. 발행 이력 보관·매월 1일 자동 cron 은 V2
+- **PDF route handler 채택** — server action 은 binary 반환 불가. `/api/hr/report/pdf?startISO=...&endISO=...` GET, `runtime = "nodejs"` (react-pdf Edge 비호환)
+- **인사이트 입력 sanitize 2단계** — `summarizeForInsight` (mock·real 공용) + `sanitizeInputForLLM` (real Claude 호출 시 추가). 마스킹 셀과 raw 사용자 데이터는 LLM 입력에서 사전 제거
+- **익명성 회귀 테스트** — insight 출력에 `@`·전화 패턴·"직원-XXX" 닉네임 패턴이 절대 들어가지 않는지 단위 테스트로 강제. real API 도 tool input_schema + 프롬프트 제약으로 같이 막음
+- **PDF 한글 폰트** — Pretendard CDN 등록 (`@react-pdf/renderer`의 Font.register). 등록 실패 시 system fallback (한글 깨짐 가능 — V2 에서 fonts/ 디렉토리 배치 검토)
+
+## 5. 다음 시작점 — Day 25
+
+시드 v2 + `/admin/audit-logs`:
+- `prisma/seed-v2.ts` — 1개월치 운영 시뮬레이션 (자가진단·예약·세션·피드백·RiskFlag 분산). D23 약식 시드를 확장 — 이번 달 자가진단 늘리고, 실 세션·피드백 데이터 추가
+- `/admin/audit-logs/page.tsx` — actor·resourceType·action·기간 필터 + 최신순 + CSV 내보내기 (V2)
+- D24 가 `GENERATE_HR_REPORT_PDF` 액션을 새로 기록하므로 시연 데이터에 자연스럽게 포함됨
 
 ### W4 잔여 일정
 
-- D24 (금): `generate_hr_insight` + `/hr/reports` + PDF
 - D25 (토): 시드 v2 + `/admin/audit-logs`
 - D26 (일): `/admin/risk-queue` (운영자 ack UI)
 - D27 (월): demo-scenario E2E

@@ -67,14 +67,19 @@ export default async function HRHome() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="flex flex-col">
           <CardHeader>
             <CardTitle>월간 리포트</CardTitle>
-            <CardDescription>임원 보고용 PDF</CardDescription>
+            <CardDescription>임원 보고용 PDF · k≥5 익명성</CardDescription>
           </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            Week 4 Day 24에 generate_hr_insight + PDF가 활성화됩니다.
+          <CardContent className="flex-1 text-sm text-muted-foreground">
+            generate_hr_insight (mock 또는 Claude) + react-pdf. 발행 시 AuditLog 기록.
           </CardContent>
+          <CardFooter>
+            <Button asChild className="w-full">
+              <Link href="/hr/reports">리포트 발행</Link>
+            </Button>
+          </CardFooter>
         </Card>
       </div>
     </div>
