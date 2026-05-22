@@ -323,6 +323,97 @@ export function computeBurnoutRate(numerator: number, denominator: number): KMas
   return { value: pct, masked: false };
 }
 
+/**
+ * 월별 시계열 (Day 23 추이 차트용).
+ *
+ * - period 의 [start, end) 를 UTC 월 경계로 잘라서 각 월별 응답 수 집계.
+ * - 모집단: STATISTICS 동의자 ∩ EMPLOYEE ACTIVE.
+ * - 셀별 k=5 마스킹 — 월별 응답 수가 1~4 면 마스킹 (차트는 0 으로 그리되 raw value 분리).
+ *
+ * 시드와 정합: D23 시드가 최근 5개월에 분산되어 있다면 약 10건/월. k 마스킹 발생 빈도 낮음.
+ */
+export interface MonthlySeriesPoint {
+  /** 월 시작 (UTC) */
+  monthStart: Date;
+  /** "2026-05" 같은 키 (정렬·차트 X축용) */
+  monthKey: string;
+  /** "5월" 같은 표시명 (한국어, KST 기준 동일 — UTC/KST 월 경계는 9시간 차이라 월 단위는 거의 동일) */
+  monthLabel: string;
+  /** 해당 월 자가진단 응답 수 (k 마스킹 적용) */
+  assessmentCount: KMasked;
+}
+
+export async function computeMonthlySeries(
+  db: PrismaClient,
+  args: {
+    companyId: string;
+    /** 이번 달 포함, 몇 개월 전까지 (예: 6 → 최근 6개월) */
+    monthsBack: number;
+    /** 기준 시점, default = new Date() */
+    asOf?: Date;
+  },
+): Promise<MonthlySeriesPoint[]> {
+  const { companyId, monthsBack } = args;
+  const asOf = args.asOf ?? new Date();
+
+  const consenterIds = await listStatisticsConsenterUserIds(db, companyId);
+  if (consenterIds.length === 0) {
+    return buildMonthBuckets(asOf, monthsBack).map((b) => ({
+      ...b,
+      assessmentCount: { value: 0, masked: false },
+    }));
+  }
+
+  const buckets = buildMonthBuckets(asOf, monthsBack);
+  const seriesStart = buckets[0].monthStart;
+  const seriesEnd = new Date(
+    Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth() + 1, 1, 0, 0, 0, 0),
+  );
+
+  const rows = await db.assessment.findMany({
+    where: {
+      userId: { in: consenterIds },
+      createdAt: { gte: seriesStart, lt: seriesEnd },
+    },
+    select: { createdAt: true },
+  });
+
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    const key = monthKeyOf(r.createdAt);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
+  return buckets.map((b) => ({
+    ...b,
+    assessmentCount: maskCell(counts.get(b.monthKey) ?? 0),
+  }));
+}
+
+function buildMonthBuckets(
+  asOf: Date,
+  monthsBack: number,
+): Array<{ monthStart: Date; monthKey: string; monthLabel: string }> {
+  const buckets: Array<{ monthStart: Date; monthKey: string; monthLabel: string }> = [];
+  for (let i = monthsBack - 1; i >= 0; i--) {
+    const monthStart = new Date(
+      Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth() - i, 1, 0, 0, 0, 0),
+    );
+    buckets.push({
+      monthStart,
+      monthKey: monthKeyOf(monthStart),
+      monthLabel: `${monthStart.getUTCMonth() + 1}월`,
+    });
+  }
+  return buckets;
+}
+
+function monthKeyOf(d: Date): string {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
+}
+
 async function computeByDepartment(
   db: PrismaClient,
   companyId: string,

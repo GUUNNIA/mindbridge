@@ -5,7 +5,9 @@ import { withAuth } from "@/lib/with-auth";
 import {
   checkPublishable,
   computeDashboard,
+  computeMonthlySeries,
   type DashboardData,
+  type MonthlySeriesPoint,
   type PublishGate,
 } from "@/lib/hr/aggregate";
 
@@ -65,5 +67,32 @@ export const getDashboard = withAuth(
       period,
     });
     return { ok: true, data, gate };
+  },
+);
+
+/**
+ * 월별 시계열 (Day 23 추이 차트용).
+ * 발행 조건(BR-7) 미달 시 시리즈는 의미 없지만 응답 자체는 0 으로 채워서 반환
+ * — UI 가 BR-7 차단 카드로 별도 처리. 본 함수는 모집단 가드(BR-12) 와 셀 마스킹(BR-5)만 강제.
+ */
+export type GetMonthlySeriesResult =
+  | { ok: true; points: MonthlySeriesPoint[] }
+  | { ok: false; error: string };
+
+export const getMonthlySeries = withAuth(
+  { action: "read", subject: "HRReport" },
+  async (
+    ctx,
+    input: { monthsBack: number },
+  ): Promise<GetMonthlySeriesResult> => {
+    if (!ctx.user.companyId) {
+      return { ok: false, error: "회사 정보가 없는 HR 계정입니다." };
+    }
+    const monthsBack = Math.min(Math.max(Math.floor(input.monthsBack), 1), 12);
+    const points = await computeMonthlySeries(prisma, {
+      companyId: ctx.user.companyId,
+      monthsBack,
+    });
+    return { ok: true, points };
   },
 );

@@ -61,18 +61,43 @@
 | D22 단독 대시보드 데이터 빈약 | 시드 v1 에 Assessment 데이터 없음 (W2에서 직접 가입·진단 한 데이터만 존재) | 정상 동작 — D25 시드 v2 에 1개월치 자가진단 시뮬레이션 데이터 들어오면 차트가 그럴듯해짐. D22 까지는 가드 로직과 UI 골격 검증이 목적 |
 | `pnpm db:seed` 외래키 제약 위반 (`RiskFlag_subjectUserId_fkey`) | W3 신설 모델(RiskFlag·Escalation·Feedback)의 User 외래키가 onDelete 미지정 (RESTRICT) 이지만 `wipe()` 함수에 해당 deleteMany 누락. D22 시드 재실행 시점에 발견 | `wipe()` 맨 앞에 Feedback → Escalation → RiskFlag 순으로 deleteMany 추가. W3 잔여 버그였고 시드 재실행 케이스가 W3 동안 없어서 누락이 가려져 있었음 |
 
-## 5. 다음 시작점 — Day 23
+### Day 23 (목) — HR 대시보드 차트 (recharts)
 
-`/hr/dashboard` 페이지에 recharts 차트 3개 추가:
-- 추이 차트 (lastNMonthsUtc 사용, 월별 자가진단 응답 수)
-- 카테고리 분포 차트 (도넛 또는 가로 막대)
-- 부서별 비교 차트 (가로 막대, 마스킹 셀은 회색 표시)
+- [x] `recharts` 추가 (`pnpm add recharts`)
+- [x] `lib/hr/aggregate.ts` — `computeMonthlySeries(db, { companyId, monthsBack, asOf })` 신설 (월 버킷 + BR-12 모집단 + 셀별 k=5 마스킹)
+- [x] `lib/actions/hr.ts` — `getMonthlySeries` server action (HRReport read, monthsBack 1~12 클램프)
+- [x] `prisma/seed.ts` — STATISTICS 동의자 30명에게 최근 5개월 분산 자가진단 ~50건 (카테고리·심각도 다양, 결정론적 해시 분배)
+- [x] `app/(roles)/hr/dashboard/_components/charts.tsx` — `MonthlyTrendChart` (선차트) + `HorizontalBarChart` (가로 막대, 마스킹 셀 회색)
+- [x] `/hr/dashboard/page.tsx` — 차트 3개 연결
+  - 월별 자가진단 추이 (최근 6개월)
+  - 카테고리 분포 (가로 막대)
+  - 부서별 이용 (가로 막대, `<5명` 마스킹 시 회색)
+  - 심각도 분포는 기존 텍스트 리스트 유지 (5단계 고정 + 마스킹 표현 단순)
+- [x] `tests/hr-aggregate.test.ts` — `computeMonthlySeries` 4건 (동의자 0 / 월 버킷 / 셀 k=5 마스킹 / BR-12 모집단 제외) — vi.fn 으로 prisma client mock
 
-차트 데이터는 동일하게 `computeDashboard` 호출 (또는 N개월치를 위한 `computeMonthlySeries` 신설). 라이브러리 후보는 recharts (Next.js 호환 좋음) 또는 tremor.
+**검증**: typecheck clean · vitest 142/142 (이전 138 + 신규 4)
+
+**디자인 결정**:
+- **선차트 vs 막대차트**: 시계열은 선, 카테고리·부서는 가로 막대로. 카테고리는 도넛 후보였지만 마스킹 셀 표현이 도넛은 부자연스러워서 막대 채택
+- **추이 기간**: 6개월 (PRD §12 의 "월별 추이" 결정 시점) — 분기·1년은 V2 의 사용자 선택지로
+- **대시보드 전체 기간 통일 (verify 후 fix)**: 초기엔 카테고리·심각도·부서를 `thisMonthUtc()`, 추이만 6개월로 분리했었으나 한 화면 안에 기간이 2종이 되어 인지부담 큼. 모두 `lastNMonthsUtc(6)` 으로 통일
+- **색상**: shadcn brand 토큰 대신 직접 hex (`teal-600` / `slate-300`) — recharts 의 CSS 변수 지원 미흡, 디자인 토큰화는 V2 polish
+- **마스킹 시각화**: 막대 → 회색(slate-300) 채움 + tooltip "<5명 (마스킹)". 선차트 → 0으로 그리되 tooltip 명시
+- **심각도는 차트 X**: 5단계 + 마스킹 표현 단순. 텍스트 리스트가 인지부담 적음
+
+**verify 중 발견·해결**:
+- 시드 분배 modulo 충돌 버그 — `monthsAgo` 와 `categorySlug` 가 같은 `i % 5` 인덱스를 써서 monthsAgo=0 인 모든 record 가 자동으로 CATEGORIES[0]=depression 으로 몰림. 결과: "이번 달 우울만 12회" 같은 단조로운 분포가 나타남. fix: `monthsAgo = floor(i / 6)` 으로 독립화. ASSESSMENT_DISTRIBUTION 배열 + assignmentIdx 패턴도 제거하고 사용자별 직접 처리로 단순화
+
+## 5. 다음 시작점 — Day 24
+
+`generate_hr_insight` Claude tool + `/hr/reports` 리스트·상세 + PDF 다운로드:
+- `lib/ai/insight.ts` — mock 우선 (D9 / D17 / D19 패턴), 입력은 `DashboardData` + 전월 비교, 출력은 1단락 인사이트 + Key Takeaways 3 + Recommended Actions 3
+- `/hr/reports` 페이지 — 발행 이력 (on-demand 집계지만 발행 시점 기록 — Outbox 또는 단순 row?) → D24 시작 시 결정
+- `/hr/reports/:id` — 1페이지 인사이트 + 차트 3개 + Action Item
+- PDF: react-pdf (Vercel 호환) — 또는 puppeteer 비교 후 결정
 
 ### W4 잔여 일정
 
-- D23 (목): `/hr/dashboard` 차트
 - D24 (금): `generate_hr_insight` + `/hr/reports` + PDF
 - D25 (토): 시드 v2 + `/admin/audit-logs`
 - D26 (일): `/admin/risk-queue` (운영자 ack UI)

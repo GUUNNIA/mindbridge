@@ -332,6 +332,122 @@ async function seedInviteCodes(companyId: string, issuedById: string) {
   }
 }
 
+/**
+ * Day 23 — 약식 자가진단 시드.
+ *
+ * 목적: HR 대시보드 차트(D23) 가 시각적으로 의미를 가지도록 STATISTICS 동의자
+ * 30 명에게 최근 5 개월 분산 자가진단 ~50건. 카테고리·심각도 분포 다양.
+ *
+ * 분포:
+ *   - 카테고리: depression / anxiety / burnout 우선 + sleep / relationships 보조
+ *   - 심각도: MILD 35% / MODERATE 35% / MODERATELY_SEVERE 20% / SEVERE 10%
+ *   - 시점: 최근 5 개월에 분산 (월별 ~10건). 시드는 결정론적 — 같은 인덱스 → 같은 시점.
+ *
+ * 본 시드는 V1 P0 화면 검증용. D25 시드 v2 가 들어오면 통째 대체 가능.
+ */
+async function seedAssessments(
+  statsConsenterUserIds: string[],
+  categoryIdBySlug: Record<string, string>,
+) {
+  if (statsConsenterUserIds.length === 0) return;
+
+  const targets = [...statsConsenterUserIds].sort().slice(0, 30); // 동의자 40명 중 앞 30명
+  const now = new Date();
+
+  // 분배 정책 (D23 초기 분배의 modulo 충돌 fix):
+  //   - monthsAgo 와 categorySlug 를 독립 변수로. 같은 modulo 인덱스 사용 금지 (같은 modulo
+  //     쓰면 한 월에 한 카테고리만 몰리는 버그 발생).
+  //   - 1차: categorySlug = i % 5, monthsAgo = floor(i / 6) (6명마다 다음 월, 0..4 분산)
+  //     → 카테고리별 6건, 월별 6명. 마스킹 k=5 안전 통과.
+  //   - 2차 (i % 5 !== 0 인 24명): 다른 카테고리 + 1차에서 1개월 뒤로 이동.
+  //     → 총 54건. 6개월 누적으로 카테고리별 10~12건.
+  const CATEGORIES = ["depression", "anxiety", "burnout", "sleep", "relationships"] as const;
+  const SEVERITIES: Array<"MILD" | "MODERATE" | "MODERATELY_SEVERE" | "SEVERE"> = [
+    "MILD", "MILD", "MILD",
+    "MODERATE", "MODERATE", "MODERATE",
+    "MODERATELY_SEVERE", "MODERATELY_SEVERE",
+    "SEVERE",
+  ];
+
+  let total = 0;
+  for (let i = 0; i < targets.length; i++) {
+    const userId = targets[i];
+    const baseMonthsAgo = Math.min(Math.floor(i / 6), 4);
+
+    // 1차
+    await createAssessmentRecord(
+      userId,
+      {
+        categorySlug: CATEGORIES[i % CATEGORIES.length],
+        severity: SEVERITIES[i % SEVERITIES.length],
+        monthsAgo: baseMonthsAgo,
+      },
+      categoryIdBySlug,
+      now,
+    );
+    total++;
+
+    // 2차 (60%) — 다른 카테고리 + 다른 월
+    if (i % 5 !== 0) {
+      await createAssessmentRecord(
+        userId,
+        {
+          categorySlug: CATEGORIES[(i + 3) % CATEGORIES.length],
+          severity: SEVERITIES[(i + 5) % SEVERITIES.length],
+          monthsAgo: (baseMonthsAgo + 1) % 5,
+        },
+        categoryIdBySlug,
+        now,
+      );
+      total++;
+    }
+  }
+
+  console.log(`[seed]   - assessments inserted: ${total}`);
+}
+
+async function createAssessmentRecord(
+  userId: string,
+  spec: {
+    categorySlug: string;
+    severity: "MILD" | "MODERATE" | "MODERATELY_SEVERE" | "SEVERE";
+    monthsAgo: number;
+  },
+  categoryIdBySlug: Record<string, string>,
+  now: Date,
+) {
+  const created = new Date(
+    Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth() - spec.monthsAgo,
+      // 1..28 중 user.id 해시 기반 결정론적 일자
+      1 + (Math.abs(hashString(userId + spec.categorySlug)) % 27),
+      9, 0, 0, 0,
+    ),
+  );
+  await prisma.assessment.create({
+    data: {
+      userId,
+      status: "COMPLETED",
+      primaryCategoryId: categoryIdBySlug[spec.categorySlug] ?? null,
+      severity: spec.severity,
+      startedAt: created,
+      completedAt: created,
+      createdAt: created,
+      updatedAt: created,
+    },
+  });
+}
+
+function hashString(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) - h) + s.charCodeAt(i);
+    h |= 0;
+  }
+  return h;
+}
+
 async function seedAuditLogSamples(adminId: string, employeeId: string) {
   const baseTs = Date.now();
   await prisma.auditLog.createMany({
@@ -401,6 +517,19 @@ async function main() {
   });
   console.log(`[seed] STATISTICS consents (40/${allEmployees.length} employees)…`);
   await seedStatisticsConsents(allEmployees.map((u) => u.id));
+
+  console.log("[seed] assessments (D23 차트용 약식 시드)…");
+  const statsConsenters = await prisma.user.findMany({
+    where: {
+      role: "EMPLOYEE",
+      consents: { some: { type: "STATISTICS", revokedAt: null } },
+    },
+    select: { id: true },
+  });
+  await seedAssessments(
+    statsConsenters.map((u) => u.id),
+    categoryIdBySlug,
+  );
 
   console.log("[seed] subscription…");
   await seedSubscription(companyId);

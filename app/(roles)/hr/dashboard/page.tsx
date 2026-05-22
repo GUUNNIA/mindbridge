@@ -11,9 +11,16 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { authOptions } from "@/lib/auth";
-import { getDashboard } from "@/lib/actions/hr";
-import { thisMonthUtc } from "@/lib/hr/period";
+import { getDashboard, getMonthlySeries } from "@/lib/actions/hr";
+import { lastNMonthsUtc } from "@/lib/hr/period";
 import type { KMasked } from "@/lib/hr/aggregate";
+
+import {
+  MonthlyTrendChart,
+  HorizontalBarChart,
+  type HorizontalBarRow,
+  type MonthlySeriesPointView,
+} from "./_components/charts";
 
 /**
  * HR 대시보드 (Day 22) — 익명 집계 + k≥5 마스킹.
@@ -27,8 +34,11 @@ export default async function HRDashboardPage() {
     redirect("/403");
   }
 
-  const period = thisMonthUtc();
-  const result = await getDashboard(period);
+  const period = lastNMonthsUtc(6);
+  const [result, seriesResult] = await Promise.all([
+    getDashboard(period),
+    getMonthlySeries({ monthsBack: 6 }),
+  ]);
 
   if (!result.ok) {
     return (
@@ -36,7 +46,7 @@ export default async function HRDashboardPage() {
         <header>
           <h1 className="text-2xl font-semibold text-foreground">HR 대시보드</h1>
           <p className="text-sm text-muted-foreground">
-            이번 달 집계 — 발행 조건 미충족으로 표시할 데이터가 없습니다.
+            최근 6개월 집계 — 발행 조건 미충족으로 표시할 데이터가 없습니다.
           </p>
         </header>
         <Card className="border-amber-200 bg-amber-50">
@@ -74,7 +84,7 @@ export default async function HRDashboardPage() {
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold text-foreground">HR 대시보드</h1>
         <p className="text-sm text-muted-foreground">
-          이번 달 익명 집계 — k≥5 마스킹 적용. 개인 식별 정보는 표시되지 않습니다.
+          최근 6개월 익명 집계 — k≥5 마스킹 적용. 개인 식별 정보는 표시되지 않습니다.
         </p>
         <p className="text-xs text-muted-foreground">
           기간: {fmtDateKST(periodStart)} ~ {fmtDateKST(periodEnd)} ·
@@ -113,28 +123,57 @@ export default async function HRDashboardPage() {
         </Card>
       </section>
 
+      <section>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">월별 자가진단 추이</CardTitle>
+            <CardDescription>
+              최근 6개월. 월별 자가진단 응답 수(STATISTICS 동의자 한정). k&lt;5 셀은 마스킹.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {seriesResult.ok ? (
+              <MonthlyTrendChart
+                ariaLabel="월별 자가진단 응답 수 추이 차트"
+                data={seriesResult.points.map<MonthlySeriesPointView>((p) => ({
+                  monthKey: p.monthKey,
+                  monthLabel: p.monthLabel,
+                  value: p.assessmentCount.masked ? 0 : p.assessmentCount.value,
+                  masked: p.assessmentCount.masked,
+                }))}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {seriesResult.error}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </section>
+
       <section className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">카테고리 분포</CardTitle>
             <CardDescription>
-              완료된 자가진단의 primary 카테고리. Day 23 에 차트화됩니다.
+              완료된 자가진단의 primary 카테고리.
             </CardDescription>
           </CardHeader>
           <CardContent>
             {data.categoryDistribution.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
+              <p className="py-6 text-center text-sm text-muted-foreground">
                 기간 내 완료된 자가진단이 없습니다.
               </p>
             ) : (
-              <ul className="space-y-1 text-sm">
-                {data.categoryDistribution.map((c) => (
-                  <li key={c.slug} className="flex justify-between">
-                    <span>{c.name}</span>
-                    <span className="font-mono">{renderCell(c.count, "회")}</span>
-                  </li>
-                ))}
-              </ul>
+              <HorizontalBarChart
+                ariaLabel="카테고리별 자가진단 응답 수"
+                unit="회"
+                data={data.categoryDistribution.map<HorizontalBarRow>((c) => ({
+                  label: c.name,
+                  value: c.count.value,
+                  masked: c.count.masked,
+                }))}
+              />
             )}
           </CardContent>
         </Card>
@@ -164,30 +203,20 @@ export default async function HRDashboardPage() {
           <CardHeader>
             <CardTitle className="text-base">부서별 이용</CardTitle>
             <CardDescription>
-              부서 인원이 5명 미만이면 해당 부서 셀은 마스킹됩니다.
+              부서 인원이 5명 미만이면 해당 부서 셀은 회색으로 마스킹됩니다.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <table className="w-full text-sm">
-              <thead className="text-xs text-muted-foreground">
-                <tr className="border-b border-border">
-                  <th className="py-2 text-left">부서</th>
-                  <th className="py-2 text-right">인원</th>
-                  <th className="py-2 text-right">이용 직원</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.byDepartment.map((d) => (
-                  <tr key={d.departmentId} className="border-b border-border last:border-0">
-                    <td className="py-2">{d.name}</td>
-                    <td className="py-2 text-right font-mono">{d.headcount}명</td>
-                    <td className="py-2 text-right font-mono">
-                      {renderCell(d.activeAssessmentUsers, "명")}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <HorizontalBarChart
+              ariaLabel="부서별 이용 직원 수"
+              unit="명"
+              data={data.byDepartment.map<HorizontalBarRow>((d) => ({
+                label: d.name,
+                value: d.activeAssessmentUsers.value,
+                masked: d.activeAssessmentUsers.masked,
+                subLabel: `${d.headcount}명 중`,
+              }))}
+            />
           </CardContent>
         </Card>
       </section>
